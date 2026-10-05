@@ -153,6 +153,7 @@ class App {
     const sc = tp.sc;
     box.appendChild(h('h3', sc.title)); box.appendChild(h('div.muted.small', sc.cat + ' · ' + sc.level + ' · ' + sc.duration + ' · ' + '★'.repeat(Math.min(3, sc.diff)) + '☆'.repeat(Math.max(0, 3 - sc.diff))));
     box.appendChild(h('p', { html: sc.desc }));
+    if (sc.symptom) box.appendChild(h('div.tp-card', { style: { background: '#fffbeb', borderColor: '#fcd34d' } }, h('b', '📞 Symptôme signalé par le client : '), h('div', { style: { marginTop: '4px', fontStyle: 'italic' } }, '« ' + sc.symptom(tp.variant) + ' »')));
     if (sc.refs) box.appendChild(h('div.small.muted', 'Référentiel : ' + sc.refs));
     box.appendChild(h('div.tp-card', h('b', 'Objectifs'), h('ul', sc.objectives.map(o => h('li', { html: o })))));
     if (sc.safety) box.appendChild(h('div.tp-card', { style: { background: '#fff7ed', borderColor: '#fdba74' } }, h('b', '⚠ Sécurité'), h('div', { html: sc.safety })));
