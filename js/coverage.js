@@ -1,0 +1,44 @@
+/* coverage.js — matrice de couverture indicative du référentiel Bac Pro CIEL (électronique) */
+(function (g) {
+'use strict';
+const NS = g.NS;
+NS.COVERAGE = {
+  note: 'Cette correspondance a été établie à partir de la connaissance générale du programme d\'électronique du Bac Pro CIEL (Cybersécurité, Informatique et réseaux, Électronique et Communication). Elle doit être validée et complétée par rapport au référentiel officiel en vigueur (ex. sosreferentiel.fr) avant usage en classe.',
+  items: [
+    ['Grandeurs électriques', 'Tension, courant, résistance, loi d\'Ohm', 'ok', 'ohm'],
+    ['Grandeurs électriques', 'Puissance et énergie, échauffement, puissance max. d\'une résistance', 'ok', 'puissance'],
+    ['Lois fondamentales', 'Associations série / parallèle', 'ok', 'assoc'],
+    ['Lois fondamentales', 'Lois de Kirchhoff (nœuds, mailles)', 'ok', 'kirchhoff'],
+    ['Lois fondamentales', 'Diviseur de tension / de courant', 'ok', 'diviseur'],
+    ['Signaux', 'Signaux périodiques : période, fréquence, valeur moyenne, valeur efficace', 'ok', 'signaux'],
+    ['Signaux', 'Régime transitoire RC, constante de temps', 'ok', 'rc'],
+    ['Signaux', 'Filtre passif, fréquence de coupure', 'ok', 'filtre'],
+    ['Mesure', 'Multimètre, oscilloscope, alimentation de laboratoire, GBF', 'ok', 'tous'],
+    ['Composants', 'Diode, LED, résistance de limitation', 'ok', 'led'],
+    ['Composants', 'Test de composants hors tension (ohmmètre, diode, continuité)', 'ok', 'test'],
+    ['Composants', 'Diode Zener, stabilisation', 'ok', 'zener'],
+    ['Composants', 'Transistor bipolaire en commutation', 'ok', 'transistor'],
+    ['Composants', 'Relais, charge inductive, diode de roue libre', 'ok', 'relais'],
+    ['Énergie', 'Transformateur monophasé', 'ok', 'transfo'],
+    ['Énergie', 'Redressement mono / double alternance', 'ok', 'redress'],
+    ['Énergie', 'Filtrage capacitif, ondulation', 'ok', 'filtrage'],
+    ['Énergie', 'Régulation linéaire 78xx, dissipation thermique', 'ok', 'regul'],
+    ['Amplification', 'AOP en régime linéaire (inverseur), saturation', 'ok', 'inverseur'],
+    ['Amplification', 'AOP en comparateur, capteur LDR', 'ok', 'cre'],
+    ['Maintenance', 'Dépannage d\'une alimentation (méthode, mesures, remplacement, contrôle)', 'ok', 'dep1'],
+    ['Maintenance', 'Dépannage d\'une platine transistor / d\'un montage à AOP', 'ok', 'dep2, dep3'],
+    ['Sécurité', 'Risque électrique, fusibles, protection (consignes dans les TP secteur)', 'part', 'transfo, dep1'],
+    ['Capteurs / Chaînes', 'Conditionnement de capteurs (CTN, LDR)', 'part', 'cre'],
+    ['Numérique', 'Logique combinatoire / séquentielle, microcontrôleur', 'no', 'à venir'],
+    ['Communication', 'Modulation, transmission, bus de terrain', 'no', 'à venir'],
+    ['Énergie', 'Alimentation à découpage, onduleur', 'no', 'à venir'],
+    ['Amplification', 'Montage non inverseur, sommateur, intégrateur, trigger de Schmitt', 'no', 'à venir'],
+  ],
+  limits: [
+    'Le moteur simule des circuits mono-phasés à composants discrets : pas de logique numérique ni de microcontrôleur dans cette première version.',
+    'Les modèles de composants (diodes, transistors, AOP, régulateurs) sont des modèles simplifiés réalistes, pas des modèles SPICE constructeur.',
+    'Le temps simulé peut être plus lent que le temps réel pour des signaux de fréquence élevée (≥ 10 kHz).',
+    'Les pannes sont injectées de manière déterministe (variantes numérotées) : le mode enseignant révèle la panne.',
+  ],
+};
+})(typeof window !== 'undefined' ? window : globalThis);

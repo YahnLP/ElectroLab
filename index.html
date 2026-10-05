@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ElectroLab — Simulateur de circuits électroniques · Bac Pro CIEL</title>
+<meta name="author" content="Yahn LE PRETTRE - Formaxion Landes">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="logo" aria-hidden="true">⏚</span> ElectroLab <small>Simulateur de circuits · Bac Pro CIEL</small><span class="credit">Créé par Yahn LE PRETTRE - Formaxion Landes</span></div>
+  <div class="grp" role="group" aria-label="Fichier">
+    <button id="btn-new" title="Nouveau schéma vide">Nouveau</button>
+    <button id="btn-open" title="Ouvrir un fichier .json">Ouvrir</button>
+    <button id="btn-save" title="Enregistrer le schéma (.json)">Enregistrer</button>
+    <button id="btn-scen" class="accent" title="Charger un TP">TP ▾</button>
+  </div>
+  <div class="grp sim" role="group" aria-label="Simulation">
+    <button id="btn-run" title="Pause / lecture (Espace)">⏸ Pause</button>
+    <button id="btn-reset" title="Remet le temps à zéro et décharge les condensateurs">↺ Reset</button>
+    <label class="spd" title="Vitesse : temps simulé par seconde réelle">Vitesse <input id="speed" type="range" min="0" max="100" value="60" aria-label="Vitesse"><output id="speedv">×1</output></label>
+    <span id="simtime" class="mono">t = 0.000 s</span><span id="simwarn" class="warnbadge" style="display:none"></span>
+  </div>
+  <div class="grp opts" role="group" aria-label="Options">
+    <label title="Affiche les tensions/courants dans l'inspecteur (sinon : instruments obligatoires)"><input type="checkbox" id="opt-aide"> Grandeurs affichées</label>
+    <label title="Voir les pannes cachées, injecter des pannes, voir les corrigés"><input type="checkbox" id="opt-teacher"> Mode enseignant</label>
+    <button id="btn-fit" title="Recentrer la vue">⌖</button>
+    <button id="btn-help" title="Aide et couverture du programme">? Aide</button>
+  </div>
+</header>
+<div id="main">
+  <aside id="left" aria-label="Composants">
+    <div id="tools" role="toolbar" aria-label="Outils">
+      <button class="tool on" data-tool="select" title="Sélection / déplacement (V)">🖱 Sélection</button>
+      <button class="tool" data-tool="wire" title="Câbler (C) — ou tirez depuis une broche">〰 Fil</button>
+      <button class="tool" data-tool="delete" title="Supprimer (Suppr)">🗑 Supprimer</button>
+      <button id="btn-rot" title="Pivoter le composant sélectionné (R)">⟳ Pivoter</button>
+      <button id="btn-undo" title="Annuler (Ctrl+Z)">↶</button>
+    </div>
+    <div id="palette"></div>
+  </aside>
+  <section id="center">
+    <div id="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Schéma électronique">
+        <defs><pattern id="gridp" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="1" fill="#b9c3d1"/></pattern></defs>
+        <g id="world"><rect id="gridrect" x="-4000" y="-4000" width="8000" height="8000" fill="url(#gridp)"/><g id="wires"></g><g id="parts"></g><g id="juncs"></g><g id="rubber"></g></g>
+      </svg>
+      <div id="toolhint" class="hint"></div>
+      <div id="banner" style="display:none"></div>
+      <div id="tooltip" class="tip" style="display:none"></div>
+    </div>
+    <div id="dock">
+      <div id="docktabs" role="tablist"><button class="dtab on" data-dock="log">Journal</button><button class="dtab" data-dock="note">Carnet de mesures</button><button id="dockmin" title="Réduire / afficher">▾</button></div>
+      <div id="dockbody"><div id="pane-log" class="pane"></div><div id="pane-note" class="pane" style="display:none"></div></div>
+    </div>
+  </section>
+  <aside id="right" aria-label="Propriétés">
+    <div id="rtabs" role="tablist"><button class="rtab on" data-r="insp">Propriétés</button><button class="rtab" data-r="tp">Sujet de TP</button></div>
+    <div id="inspector" class="rpane"></div>
+    <div id="tppane" class="rpane" style="display:none"></div>
+  </aside>
+</div>
+<div id="winlayer"></div>
+<input type="file" id="filein" accept=".json,application/json" style="display:none">
+<script src="js/util.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/models.js"></script>
+<script src="js/parts.js"></script>
+<script src="js/circuit.js"></script>
+<script src="js/editor_ser.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/instruments.js"></script>
+<script src="js/app.js"></script>
+<script src="js/scenarios.js"></script>
+<script src="js/tp_base.js"></script>
+<script src="js/tp_comp.js"></script>
+<script src="js/tp_alim.js"></script>
+<script src="js/tp_dep.js"></script>
+<script src="js/tp_aop.js"></script>
+<script src="js/coverage.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
