@@ -1682,12 +1682,12 @@ class Instruments {
     const app = this.app, P = inst.p; const cv = h('canvas', { width: 680, height: 420 }); const meas = h('div.scmeas');
     const sel = (k, opts, fmtf, cls) => h('select', { class: cls || '', onchange: e => { const v = e.target.value; P[k] = isNaN(+v) || typeof opts[0] === 'string' ? v : +v; if (['v1', 'v2', 'tdiv', 'src', 'trig', 'pos1', 'pos2'].includes(k)) P[k] = +v; app.saveSoon(); } }, opts.map(o => h('option', { value: o, selected: String(P[k]) === String(o) }, fmtf ? fmtf(o) : o)));
     const num = (k, step, min, max) => h('input', { type: 'number', step, min, max, value: P[k], onchange: e => { P[k] = +e.target.value; app.saveSoon(); } });
-    const runb = h('button', { onclick: () => { P.run = !P.run; app.saveSoon(); } });
+    const runb = h('button', { title: 'RUN : l\'écran se met à jour en continu. STOP : fige l\'image pour la mesurer (clic pour basculer).', onclick: () => { P.run = !P.run; app.saveSoon(); } });
     const tog = (k, l, cls) => h('label', { class: cls }, h('input', { type: 'checkbox', checked: P[k], onchange: e => { P[k] = e.target.checked; app.saveSoon(); } }), ' ' + l);
     const ctl = h('div.scctl',
       h('fieldset', h('legend.ch1', 'CH1'), tog('on1', 'Afficher', 'ch1'), sel('v1', VDIV, v => lbl(v, 'V') + '/div'), sel('c1', ['DC', 'AC', 'GND']), h('div', 'Pos. ', num('pos1', 0.5, -4, 4))),
       h('fieldset', h('legend.ch2', 'CH2'), tog('on2', 'Afficher', 'ch2'), sel('v2', VDIV, v => lbl(v, 'V') + '/div'), sel('c2', ['DC', 'AC', 'GND']), h('div', 'Pos. ', num('pos2', 0.5, -4, 4))),
-      h('fieldset', h('legend', 'BASE DE TEMPS'), sel('tdiv', TDIV, v => lbl(v, 's') + '/div'), h('div', 'Pos. déclench. ', num('tpos', 1, 0, 9)), runb, h('button', { onclick: () => this.autoset(inst) }, 'Auto')),
+      h('fieldset', h('legend', 'BASE DE TEMPS'), sel('tdiv', TDIV, v => lbl(v, 's') + '/div'), h('div', 'Pos. déclench. ', num('tpos', 1, 0, 9)), runb, h('button', { title: 'Réglage automatique : ajuste sensibilité, base de temps et déclenchement au signal de CH1', onclick: () => this.autoset(inst) }, 'Auto')),
       h('fieldset', h('legend', 'DÉCLENCHEMENT'), sel('src', [1, 2], v => 'Source CH' + v), sel('edge', ['up', 'down'], v => v === 'up' ? 'Front montant ↗' : 'Front descendant ↘'), h('div', 'Niveau (V) ', num('trig', 0.1))));
     const body = h('div', cv, ctl, meas); const el = this.frame('Oscilloscope', 'scwin', body, inst);
     return { el, cv, meas, update: () => { runb.textContent = P.run ? '▶ RUN' : '⏸ STOP'; this.drawScope(inst, cv, meas); } };
