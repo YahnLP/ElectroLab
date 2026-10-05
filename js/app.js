@@ -165,6 +165,7 @@ class App {
     if (sc.symptom) box.appendChild(h('div.tp-card', { style: { background: '#fffbeb', borderColor: '#fcd34d' } }, h('b', '📞 Symptôme signalé par le client : '), h('div', { style: { marginTop: '4px', fontStyle: 'italic' } }, '« ' + sc.symptom(tp.variant) + ' »')));
     if (sc.refs) box.appendChild(h('div.small.muted', 'Référentiel : ' + sc.refs));
     box.appendChild(h('div.tp-card', h('b', 'Objectifs'), h('ul', sc.objectives.map(o => h('li', { html: o })))));
+    (NS.coursFor ? NS.coursFor(sc.id) : []).forEach((c, i) => box.appendChild(h('details.cours', { open: i === 0 }, h('summary', '📘 Apport de cours — ' + c.t), h('div.coursbody', { html: c.h }))));
     if (sc.safety) box.appendChild(h('div.tp-card', { style: { background: '#fff7ed', borderColor: '#fdba74' } }, h('b', '⚠ Sécurité'), h('div', { html: sc.safety })));
     box.appendChild(h('div.tp-card', h('b', 'Travail demandé'), h('ol', sc.steps.map(s => h('li', { html: s })))));
     if (this.teacher && sc.variants && sc.faultInfo) box.appendChild(h('div.tp-card', { style: { background: '#fef2f2' } }, h('b', 'Panne injectée (enseignant) : '), sc.faultInfo(tp.variant)));
