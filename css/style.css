@@ -95,3 +95,7 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
 #heatlegend{position:absolute;right:12px;top:10px;background:rgba(15,23,42,.85);color:#e2e8f0;padding:6px 10px;border-radius:6px;font:11px var(--mono);pointer-events:none;z-index:4}
 #heatlegend .bar{height:10px;width:170px;border-radius:3px;margin:3px 0;background:linear-gradient(90deg,rgb(32,18,90),rgb(110,30,170) 12%,rgb(200,40,90) 24%,rgb(245,110,30) 40%,rgb(255,200,40) 64%,rgb(255,250,200))}
 #heatlegend .sc{display:flex;justify-content:space-between}#btn-heat.on{background:#7c3aed;color:#fff}
+
+.wire.probe{stroke-dasharray:7 3}.probetip{stroke:#fff;stroke-width:1.5;fill:#dc2626;pointer-events:none}.probetip.k{fill:#111827}
+.wire.netlit{stroke:#f59e0b!important;stroke-width:3.6}.pinjunc{fill:#0369a1}
+#canvas[data-tool=probe]{cursor:crosshair}

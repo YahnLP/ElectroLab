@@ -52,6 +52,7 @@ class Editor {
     if (this.armed) s = 'Cliquez pour placer « ' + PARTS[this.armed].label + ' » · R : pivoter · Échap : terminer';
     else if (this.wiring) s = 'Cliquez une broche pour terminer · clic dans le vide = point de passage · Échap : annuler';
     else if (this.tool === 'wire') s = 'Fil : cliquez une broche (ou un fil) de départ';
+    else if (this.tool === 'probe') s = 'Pointes de touche : clic sur une broche = pointe rouge (+) ; clic suivant = pointe noire (COM) · Maj+clic = noire';
     else if (this.tool === 'delete') s = 'Cliquez un composant ou un fil pour le supprimer';
     else s = 'Glissez une broche vers une autre pour câbler · double-clic sur un instrument pour l\'ouvrir';
     t.textContent = s;
@@ -90,12 +91,14 @@ class Editor {
   wireEl(w) {
     const pts = this.expand(w); const d = 'M' + pts.map(p => p[0] + ' ' + p[1]).join(' L');
     let col = w.color || ''; if (!col) { for (const e of [w.a, w.b]) if (e.c) { const p = this.c.part(e.c); const pin = p && PARTS[p.type].pins[e.p]; if (pin && pin.c && ['multimeter', 'scope'].includes(p.type)) col = pin.c; } }
-    const gr = svgEl('g', { 'data-wid': w.id }); const path = svgEl('path', { d, class: 'wire' + (col ? ' ' + col : '') + (this.selWire === w.id ? ' sel' : '') }); const hit = svgEl('path', { d, class: 'wirehit', 'data-wid': w.id });
-    gr.appendChild(path); gr.appendChild(hit); return gr;
+    const gr = svgEl('g', { 'data-wid': w.id }); const path = svgEl('path', { d, class: 'wire' + (col ? ' ' + col : '') + (w.probe ? ' probe' : '') + (this.selWire === w.id ? ' sel' : '') }); const hit = svgEl('path', { d, class: 'wirehit', 'data-wid': w.id });
+    gr.appendChild(path); gr.appendChild(hit); if (w.probe) { const q = pts[pts.length - 1]; gr.appendChild(svgEl('circle', { cx: q[0], cy: q[1], r: 6, class: 'probetip ' + (col || '') })); } return gr;
   }
   renderJunctions() {
     clear(this.gJ); const cnt = new Map();
     for (const w of this.c.wires) for (const e of [w.a, w.b]) if (e.j) cnt.set(e.j, (cnt.get(e.j) || 0) + 1);
+    const pc = new Map(); for (const w of this.c.wires) for (const e of [w.a, w.b]) if (e.c) { const k = e.c + ':' + e.p; pc.set(k, (pc.get(k) || 0) + 1); }
+    for (const [k, n] of pc) if (n >= 2) { const [id, pi] = k.split(':'); const q = this.c.endPos({ c: id, p: +pi }); if (q) this.gJ.appendChild(svgEl('circle', { cx: q[0], cy: q[1], r: 4.2, class: 'junc pinjunc' })); }
     for (const j of this.c.junctions) { const n = cnt.get(j.id) || 0; const dot = svgEl('circle', { cx: j.x, cy: j.y, r: n >= 3 ? 4.5 : 3.2, class: 'junc', 'data-jid': j.id }); if (this.selJ === j.id) dot.setAttribute('style', 'fill:#f59e0b'); this.gJ.appendChild(dot); }
   }
   partEl(inst) {
@@ -131,6 +134,30 @@ class Editor {
       if (p.type === 'psu') { const led = e.querySelector('.psu-led'); const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; if (led) led.style.fill = el && el.cc ? '#ef4444' : p.p.on ? '#22c55e' : '#6b7280'; }
     }
   }
+  /* pointes de touche du multimètre : clic sur une broche = pointe rouge (+), clic suivant = pointe noire (COM) ; Maj+clic = noire */
+  probeMeter() { let m = this.c.part(this.probeId); if (!m || m.type !== 'multimeter') m = this.c.parts.find(p => p.type === 'multimeter'); return m; }
+  probeClick(e, t, wp) {
+    const end = this.endpointAt(t, wp); if (!end || (end.c === undefined && !end.j)) return;
+    const mm = this.probeMeter(); if (!mm) { this.app.toast('Placez d\'abord un multimètre pour utiliser les pointes de touche.', 'warn'); return; }
+    if (end.c === mm.id) return;
+    const col = e.shiftKey ? 'k' : (this.probeNext || 'r'); this.pushUndo();
+    this.c.wires = this.c.wires.filter(w => w.probe !== mm.id + col);
+    const w = this.c.wire({ c: mm.id, p: col === 'r' ? 0 : 1 }, end, [], col); w.probe = mm.id + col;
+    this.probeNext = col === 'r' ? 'k' : 'r'; this.app.changed('wire'); this.hint();
+  }
+  clearProbes(mmId) { this.c.wires = this.c.wires.filter(w => !(w.probe && w.probe.startsWith(mmId))); this.app.changed('wire'); }
+  /* surbrillance du nœud électrique survolé (pour voir ce qui est relié) */
+  netLight(t) {
+    const key = [];
+    if (t && t.closest) { const pin = t.closest('.pin'); const wh = t.closest('[data-wid]'); if (pin) key.push('p:' + pin.closest('.part').dataset.id + ':' + pin.dataset.pin); else if (t.dataset && t.dataset.jid) key.push('j:' + t.dataset.jid); else if (wh) { const w = this.c.wires.find(x => x.id === wh.dataset.wid); if (w) for (const e of [w.a, w.b]) key.push(e.j ? 'j:' + e.j : 'p:' + e.c + ':' + e.p); } }
+    const k = key.join('|'); if (k === this._netKey) return; this._netKey = k;
+    this.gWires.querySelectorAll('.netlit').forEach(n => n.classList.remove('netlit'));
+    if (!key.length) return;
+    const ek = e => e.j ? 'j:' + e.j : 'p:' + e.c + ':' + e.p; const seen = new Set(key.slice(0, 1)); const lit = new Set(); let grow = true;
+    while (grow) { grow = false; for (const w of this.c.wires) { const a = ek(w.a), b = ek(w.b); if (seen.has(a) || seen.has(b)) { if (!lit.has(w.id)) { lit.add(w.id); grow = true; } if (!seen.has(a)) { seen.add(a); grow = true; } if (!seen.has(b)) { seen.add(b); grow = true; } } } }
+    // une borne de composant relie ses fils au même nœud ; en revanche deux broches différentes d'un même composant ne sont pas reliées
+    this.gWires.querySelectorAll('[data-wid]').forEach(g => { if (g.tagName === 'g' && lit.has(g.dataset.wid)) g.firstChild.classList.add('netlit'); });
+  }
   /* thermographie : halo coloré + température sous chaque composant */
   setHeat(on) { this.heat = !!on; this.svg.classList.toggle('thermo', this.heat); const lg = $('#heatlegend'); if (lg) lg.style.display = this.heat ? '' : 'none'; if (!this.heat) this.svg.querySelectorAll('.heatov').forEach(n => n.remove()); }
   heatUpdate(p, e) {
@@ -140,7 +167,7 @@ class Editor {
     g.firstChild.style.fill = NS.thermal.color(T); g.lastChild.textContent = Math.round(T) + ' °C'; g.lastChild.style.fill = T > 70 ? '#fca5a5' : '#e2e8f0';
   }
   /* ---------------- sélection ---------------- */
-  select(id) { this.sel = id; this.selWire = null; this.selJ = null; this.render(); this.app.onSelect(id ? this.c.part(id) : null); }
+  select(id) { this.sel = id; { const q = id && this.c.part(id); if (q && q.type === 'multimeter') this.probeId = id; } this.selWire = null; this.selJ = null; this.render(); this.app.onSelect(id ? this.c.part(id) : null); }
   selectWire(id) { this.sel = null; this.selWire = id; this.selJ = null; this.render(); this.app.onSelect(null); }
   /* ---------------- fils ---------------- */
   nearestOnWire(w, pt) {
@@ -224,7 +251,7 @@ class Editor {
     if (k === 'Escape') { this.cancelWiring(); this.armed = null; $$('.pal-item').forEach(b => b.classList.remove('armed')); this.ghost(); this.hint(); }
     else if ((k === 'Delete' || k === 'Backspace')) { if (this.sel) { const p = this.c.part(this.sel); if (p) this.removePart(p); } else if (this.selWire) this.removeWire(this.selWire); e.preventDefault(); }
     else if (k === 'r' || k === 'R') this.rotate();
-    else if (k === 'v' || k === 'V') this.setTool('select'); else if (k === 'c' || k === 'C') this.setTool('wire'); else if (k === 'x' || k === 'X') this.setTool('delete');
+    else if (k === 'v' || k === 'V') this.setTool('select'); else if (k === 'c' || k === 'C') this.setTool('wire'); else if (k === 'x' || k === 'X') this.setTool('delete'); else if (k === 'p' || k === 'P') this.setTool('probe');
     else if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'Z')) { this.undo(); e.preventDefault(); }
     else if (k === ' ') { this.app.toggleRun(); e.preventDefault(); }
   }
@@ -234,7 +261,7 @@ class Editor {
   }
   down(e) {
     if (e.button === 2) return;
-    { const now = performance.now(), ld = this.lastDown; if (ld && now - ld.t < 380 && Math.hypot(e.clientX - ld.x, e.clientY - ld.y) < 6 && e.button === 0 && !this.armed) { this.lastDown = null; this.drag = null; this.dbl(e); return; } this.lastDown = { t: now, x: e.clientX, y: e.clientY }; }   // double-clic géré à la main (le 1er clic redessine les pièces)
+    { const now = performance.now(), ld = this.lastDown; if (ld && now - ld.t < 380 && Math.hypot(e.clientX - ld.x, e.clientY - ld.y) < 6 && e.button === 0 && !this.armed && this.tool !== 'probe') { this.lastDown = null; this.drag = null; this.dbl(e); return; } this.lastDown = { t: now, x: e.clientX, y: e.clientY }; }   // double-clic géré à la main (le 1er clic redessine les pièces)
     this.svg.setPointerCapture(e.pointerId); const wp = this.toWorld(e); this.mouse = wp; const t = e.target;
     const end = this.endpointAt(t, wp);
     if (e.button === 1 || e.shiftKey && !end) { this.drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, vx: this.view.x, vy: this.view.y }; this.svg.classList.add('panning'); return; }
@@ -245,6 +272,7 @@ class Editor {
     if (this.armed) { // placement
       this.pushUndo(); const p = this.c.add(this.armed, snap(wp[0]), snap(wp[1])); p.rot = this.armedRot || 0; this.app.changed('structure'); this.select(p.id); this.ghost(); return;
     }
+    if (this.tool === 'probe') { this.probeClick(e, t, wp); return; }
     const part = t.closest && t.closest('.part');
     if (this.tool === 'delete') {
       if (part) { const p = this.c.part(part.dataset.id); if (p) this.removePart(p); } else { const wh = t.closest && t.closest('[data-wid]'); if (wh) this.removeWire(wh.dataset.wid); }
@@ -276,7 +304,7 @@ class Editor {
     }
     if (this.wiring) { if (Math.hypot(wp[0] - this.wiring.start[0], wp[1] - this.wiring.start[1]) > 6) this.wiring.moved = true; this.rubber(); }
     if (this.armed) this.ghost();
-    this.hoverTip(e);
+    this.hoverTip(e); if (!this.drag && !this.wiring) this.netLight(e.target);
   }
   redrawWires() { clear(this.gWires); for (const w of this.c.wires) this.gWires.appendChild(this.wireEl(w)); this.renderJunctions(); }
   up(e) {

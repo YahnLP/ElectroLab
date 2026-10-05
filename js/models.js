@@ -130,7 +130,7 @@ class Transformer extends El {
     const i1 = eng.x[this.br[0]], i2 = eng.x[this.br[1]]; this.s.i1 = i1; this.s.i2 = i2; this.I1 = i1; this.I2 = -i2;
     if (this.burnt) return; const p = this.p;
     const P = i1 * i1 * p.Rp + i2 * i2 * p.Rs; const Pn = p.VA * 0.25;               // pertes cuivre admissibles
-    if (heat(this.s, 'h', P / Pn, dt, 6, 30)) this.burn(eng, 'primaire');
+    if (heat(this.s, 'h', P / Pn, dt, 40, 30)) this.burn(eng, 'primaire');
   }
 }
 MODELS.transformer = (i, p) => new Transformer(i, p);
@@ -194,7 +194,7 @@ class Switch extends El {
 MODELS.switch = MODELS.pushbutton = (i, p) => new Switch(i, p);
 
 class Fuse extends El {
-  stampLin(eng) { const open = this.burnt || this.fault === 'blown'; this.R = open ? 1e12 : this.p.R; eng.cond(this.ix[0], this.ix[1], 1 / this.R); }
+  stampLin(eng) { const open = this.burnt || this.fault === 'blown'; this.R = open ? 1e9 : this.p.R; eng.cond(this.ix[0], this.ix[1], 1 / this.R); }
   accept(eng, dt) {
     const v = eng.v(this.ix[0]) - eng.v(this.ix[1]); const I = v / this.R; this.I = I; if (this.burnt) return;
     this.s.ms = (this.s.ms || 0) + (I * I - (this.s.ms || 0)) * Math.min(1, dt / 0.05);   // échauffement = I² moyen (pas les pointes de courant du redressement)
@@ -244,6 +244,8 @@ class Diode extends El {
       const nz = p.zs; const u = -(vd + p.Vz), uo = -(vold + p.Vz); const vcz = nz * Math.log(nz / (Math.SQRT2 * 1e-3 * 1e-3 + 1e-12));
       const ul = pnjlim(u, uo, nz, Math.max(vcz, 0.05)); if (ul !== u) vl = -(ul) - p.Vz;
     }
+    const lin = this.fault === 'open' || this.fault === 'short' || this.burnt;   // diode ouverte / en court-circuit : modèle linéaire, pas de limitation de Newton
+    if (lin) vl = vd;
     if (vl !== vd) eng.noncon = true; this.s.vdi = vl;
     let I, Gd;
     if (this.fault === 'open' || (this.burnt && this.burnt !== 'court-circuit')) { I = 0; Gd = 1e-12; }
@@ -448,7 +450,12 @@ class Multimeter extends El {
     }
     if (m === 'Ohm') { // calibrage automatique
       const Rr = s.Rr || 1000; const vs = 0.45, x = s.mean; let ratio = x / vs; let R = Rr * x / Math.max(vs - x, 1e-9); s.R = R;
-      if (ratio > 0.8 && Rr < 1e7) { s.Rr = Rr * 10; this.ver++; } else if (ratio < 0.05 && Rr > 100) { s.Rr = Rr / 10; this.ver++; }
+      if (s.tR === undefined) s.tR = eng.t;
+      if (eng.t - s.tR > 0.3) { // fenêtre propre après chaque changement de calibre
+        let ch = 0;
+        if (ratio > 0.8 && Rr < 1e7) ch = 10; else if (ratio < 0.05 && Rr > 100) ch = 0.1;
+        if (ch) { s.Rr = Rr * ch; s.tR = eng.t; s.ring = null; this.ver++; }
+      }
     }
   }
   reading() {

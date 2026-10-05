@@ -151,8 +151,10 @@ class Engine {
   advance(dT, budgetMs) {
     const tEnd = this.t + dT, t0 = Date.now(); let n = 0;
     while (this.t < tEnd - 1e-15) {
-      let h = Math.min(this.dtNext, tEnd - this.t); if (h < this.dtMin * 0.5) h = tEnd - this.t;
+      // pas courant, jamais inférieur à dtMin (sinon un pas « reste de trame » minuscule faisait avaler toute la trame suivante en un seul pas de 16 ms)
+      const dn = Math.max(this.dtNext, this.dtMin); let h = Math.min(dn, tEnd - this.t); if (h <= 0) break;
       this.step(h);
+      if (h < dn * 0.5) this.dtNext = Math.max(this.dtNext, dn);   // pas tronqué par la fin de la trame d'affichage : on garde le pas précédent
       if ((++n & 31) === 0 && budgetMs && Date.now() - t0 > budgetMs) break;
     }
     return this.t;

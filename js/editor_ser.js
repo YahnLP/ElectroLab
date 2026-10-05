@@ -9,7 +9,7 @@ NS.serialize = function (c) {
 NS.deserialize = function (o) {
   const c = new NS.Circuit(); c.seq = o.seq || 1; c.nameN = o.nameN || {};
   for (const q of o.parts) { if (!PARTS[q.type]) continue; const inst = NS.newInst(q.type, q.x, q.y, q.id); Object.assign(inst, { rot: q.rot || 0, fault: q.fault || null, burnt: q.burnt || null, dev: q.dev || 0, ref: q.ref, replaced: q.replaced || 0 }); inst.p = Object.assign({}, inst.p, JSON.parse(JSON.stringify(q.p))); c.parts.push(inst); }
-  c.wires = (o.wires || []).map(w => ({ id: w.id, a: w.a, b: w.b, mid: w.mid || [], color: w.color || null })); c.junctions = (o.junctions || []).map(j => Object.assign({}, j));
+  c.wires = (o.wires || []).map(w => ({ id: w.id, a: w.a, b: w.b, mid: w.mid || [], color: w.color || null, probe: w.probe || undefined })); c.junctions = (o.junctions || []).map(j => Object.assign({}, j));
   return c;
 };
 })(typeof window !== 'undefined' ? window : globalThis);

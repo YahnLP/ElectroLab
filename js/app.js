@@ -25,7 +25,8 @@ class App {
     if (this.running) NS.thermal.update(this.sim, dt * this.speed);
     this.editor.dyn(); this.instr.update();
     $('#simtime').textContent = 't = ' + this.sim.eng.t.toFixed(3) + ' s';
-    const wb = $('#simwarn'); const w = this.sim.eng.warn; wb.style.display = w ? '' : 'none'; if (w) wb.textContent = '⚠ ' + w;
+    const wb = $('#simwarn'); let w = this.sim.eng.warn;
+    { const bad = this.sim.eng.stats.bad || 0; if (!this._bw || ts - this._bw.t > 1000) { this._badOn = this._bw ? bad - this._bw.n > 8 : false; this._bw = { t: ts, n: bad }; } if (w === 'Non-convergence' && !this._badOn) w = null; }   // un échec isolé pendant un transitoire (fusible qui saute…) n'est pas affiché wb.style.display = w ? '' : 'none'; if (w) wb.textContent = '⚠ ' + w;
     const noG = this.circuit.parts.length && this.circuit.hasGround === false; const bn = $('#banner'); bn.style.display = noG ? '' : 'none'; if (noG) bn.textContent = 'Aucune masse (0 V) dans le montage : la référence est choisie automatiquement. Ajoutez un symbole « Masse » pour fixer le 0 V.';
     if (this.tp && this._tpDirty && ts - (this._tpT || 0) > 400) { this._tpT = ts; this._tpDirty = false; }
   }
@@ -79,7 +80,7 @@ class App {
     if (!d.noLabel) box.appendChild(h('div.field', h('label', 'Repère'), h('input', { type: 'text', value: inst.ref, onchange: e => { inst.ref = e.target.value.trim() || inst.ref; this.editor.render(); this.saveSoon(); } })));
     if (inst.burnt) box.appendChild(h('div', h('span.badge.ko', '✖ Composant détruit' + (inst.burnt !== true ? ' (' + inst.burnt + ')' : '')), ' '));
     if (inst.p.hidden && !this.teacher) box.appendChild(h('p.muted', 'Réglages masqués : mesurez le signal avec les instruments.')); else d.fields.forEach(f => box.appendChild(this.fieldRow(inst, f)));
-    if (['multimeter', 'scope', 'psu', 'gbf'].includes(inst.type)) box.appendChild(h('div', { style: { margin: '8px 0' } }, h('button.primary', { onclick: () => this.instr.open(inst) }, 'Ouvrir l\'instrument')));
+    if (['multimeter', 'scope', 'psu', 'gbf'].includes(inst.type)) box.appendChild(h('div', { style: { margin: '8px 0' } }, h('button.primary', { onclick: () => this.instr.open(inst) }, 'Ouvrir l\'instrument'), inst.type === 'multimeter' ? h('button', { style: { marginLeft: '6px' }, title: 'Retire les pointes posées avec l\'outil « Pointes »', onclick: () => this.editor.clearProbes(inst.id) }, 'Retirer les pointes') : null));
     // grandeurs
     if (this.opts.aide || this.teacher) {
       const el = !this.sim.dirty && this.sim.elOf.get(inst.id); if (el) { const kv = h('div.kv'); const add = (k, v, u) => { if (v !== undefined && isFinite(v)) { kv.appendChild(h('span', k)); kv.appendChild(h('span', fmt(v, u, 4))); } }; add('Courant', el.I, 'A'); add('Tension', el.V, 'V'); add('Puissance', el.P, 'W'); if (el.Vce !== undefined) add('Vce', el.Vce, 'V'); if (el.Vbe !== undefined) add('Vbe', el.Vbe, 'V'); if (el.T !== undefined) add('Température', el.T, '°C'); if (kv.children.length) { box.appendChild(h('h4', 'Grandeurs (mode aide)')); box.appendChild(kv); } }
