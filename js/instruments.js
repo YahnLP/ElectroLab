@@ -136,7 +136,9 @@ class Instruments {
     ctx.strokeStyle = '#2e5c43'; ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
     ctx.strokeStyle = '#2e5c43'; for (let i = 0; i < 50; i++) { const x = i * dx / 5; ctx.beginPath(); ctx.moveTo(x, H / 2 - 3); ctx.lineTo(x, H / 2 + 3); ctx.stroke(); } for (let i = 0; i < 40; i++) { const y = i * dy / 5; ctx.beginPath(); ctx.moveTo(W / 2 - 3, y); ctx.lineTo(W / 2 + 3, y); ctx.stroke(); }
     const s = el && el.s; if (!s || !s.ring || s.ring.n < 2) { ctx.fillStyle = '#6ee7a0'; ctx.font = '14px monospace'; ctx.fillText('Pas de signal — câblez CH1 / CH2 / GND', 14, 24); meas.textContent = ''; return; }
-    const r = s.ring, span = P.tdiv * 10, tNow = r.at(r.n - 1);
+    // STOP : on travaille sur une copie figée du tampon (sinon la fenêtre affichée sort du tampon circulaire et l'écran se vide)
+    let r = s.ring; if (!P.run) { if (!s.frozen) { const f = new NS.Ring(r.cap, r.v.length); f.t.set(r.t); r.v.forEach((a, i) => f.v[i].set(a)); f.n = r.n; f.head = r.head; s.frozen = f; } r = s.frozen; } else s.frozen = null;
+    const span = P.tdiv * 10, tNow = r.at(r.n - 1);
     let t0 = s.t0; const trigCh = P.src === 2 ? 1 : 0;
     const sig = [P.tdiv, P.trig, P.edge, P.src, P.tpos].join('|'); if (s.sig !== sig) { s.sig = sig; s.t0 = t0 = undefined; s.trigT = undefined; }
     // comme un vrai oscilloscope : on fige une trame complète synchronisée, puis on la remplace seulement quand une nouvelle acquisition est terminée (pas de « tressautement »)
