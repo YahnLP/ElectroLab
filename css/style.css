@@ -106,3 +106,4 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
 .pinmsg{min-height:1.2em;font-size:13px}.pinmsg.err{color:#b91c1c;font-weight:600}
 .pinlog{max-height:200px;overflow:auto;border:1px solid #cbd5e1;border-radius:6px;padding:6px;font-size:12px;margin:6px 0;background:#f8fafc}
 .pinlog .logl.echec,.pinlog .logl.bloque{color:#b91c1c}.pinlog .logl.succes{color:#15803d}
+.seghandle{fill:#f59e0b;stroke:#fff;stroke-width:1;pointer-events:none}.wirehit{cursor:move}
