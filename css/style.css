@@ -99,3 +99,10 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
 .wire.probe{stroke-dasharray:7 3}.probetip{stroke:#fff;stroke-width:1.5;fill:#dc2626;pointer-events:none}.probetip.k{fill:#111827}
 .wire.netlit{stroke:#f59e0b!important;stroke-width:3.6}.pinjunc{fill:#0369a1}
 #canvas[data-tool=probe]{cursor:crosshair}
+.pinmodal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:1000}
+.pinbox{background:#fff;color:#0f172a;border-radius:10px;padding:16px 18px;width:min(460px,92vw);max-height:86vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.pinbox h3{margin:0 0 8px}.pinin{font-size:20px;letter-spacing:6px;width:9.5em;text-align:center;margin:4px 6px 4px 0}
+.pinrow{display:flex;gap:6px;flex-wrap:wrap}.pinbtns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.pinmsg{min-height:1.2em;font-size:13px}.pinmsg.err{color:#b91c1c;font-weight:600}
+.pinlog{max-height:200px;overflow:auto;border:1px solid #cbd5e1;border-radius:6px;padding:6px;font-size:12px;margin:6px 0;background:#f8fafc}
+.pinlog .logl.echec,.pinlog .logl.bloque{color:#b91c1c}.pinlog .logl.succes{color:#15803d}

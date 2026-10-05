@@ -109,11 +109,20 @@ class App {
     return h('div.field', h('label', f.label), ctl);
   }
   /* ---------------- options ---------------- */
+  setTeacher(on) {
+    this.teacher = !!on; $('#opt-teacher').checked = this.teacher; const b = $('#btn-lock'); if (b) b.textContent = this.teacher ? '🔓 PIN…' : (NS.Teacher.hasPin() ? '🔒' : '🔑');
+    this.editor.render(); this.refreshInspector(); this.renderTP();
+  }
   bindUI() {
     $('#btn-run').onclick = () => this.toggleRun(); $('#btn-reset').onclick = () => this.resetSim();
     const spd = $('#speed'); spd.value = 50; spd.oninput = () => this.setSpeed(+spd.value); this.setSpeed(50);
     $('#opt-aide').onchange = e => { this.opts.aide = e.target.checked; this.refreshInspector(); };
-    $('#opt-teacher').onchange = e => { this.teacher = e.target.checked; this.editor.render(); this.refreshInspector(); this.renderTP(); };
+    $('#opt-teacher').onchange = e => {
+      if (e.target.checked && NS.Teacher.hasPin()) { e.target.checked = false; NS.Teacher.ask(ok => { if (ok) this.setTeacher(true); }); return; }
+      this.setTeacher(e.target.checked);
+    };
+    $('#btn-lock').textContent = NS.Teacher.hasPin() ? '🔒' : '🔑';
+    $('#btn-lock').onclick = () => { if (this.teacher) NS.Teacher.menu(this); else if (NS.Teacher.hasPin()) NS.Teacher.ask(ok => { if (ok) this.setTeacher(true); }); else NS.Teacher.menu(this); };
     $$('.tool').forEach(b => b.onclick = () => this.editor.setTool(b.dataset.tool)); $('#btn-rot').onclick = () => this.editor.rotate(); $('#btn-undo').onclick = () => this.editor.undo();
     $('#btn-fit').onclick = () => this.editor.fit(); $('#btn-new').onclick = () => { if (!this.circuit.parts.length || confirm('Effacer le schéma actuel ?')) this.newCircuit(); };
     $('#btn-save').onclick = () => this.saveFile(); $('#btn-open').onclick = () => $('#filein').click();

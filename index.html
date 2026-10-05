@@ -25,6 +25,7 @@
   <div class="grp opts" role="group" aria-label="Options">
     <label title="Affiche les tensions/courants dans l'inspecteur (sinon : instruments obligatoires)"><input type="checkbox" id="opt-aide"> Grandeurs affichées</label>
     <label title="Voir les pannes cachées, injecter des pannes, voir les corrigés"><input type="checkbox" id="opt-teacher"> Mode enseignant</label>
+    <button id="btn-lock" title="Verrouiller le mode enseignant par un code PIN à 6 chiffres (journal des tentatives)">🔑</button>
     <button id="btn-heat" title="Caméra thermique : affiche la température estimée des composants (comme en vraie maintenance)">🌡 Thermographie</button>
     <button id="btn-fit" title="Recentrer la vue">⌖</button>
     <button id="btn-help" title="Aide et couverture du programme">? Aide</button>
@@ -75,6 +76,7 @@
 <script src="js/editor.js"></script>
 <script src="js/instruments.js"></script>
 <script src="js/thermal.js"></script>
+<script src="js/teacher.js"></script>
 <script src="js/app.js"></script>
 <script src="js/scenarios.js"></script>
 <script src="js/tp_base.js"></script>
