@@ -98,6 +98,12 @@ code{background:#eef2f7;border-radius:3px;padding:0 3px;font-family:var(--mono);
 .diff{font-size:11px;color:#b45309}
 table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.cov th{border:1px solid var(--line);padding:3px 6px;text-align:left}.st-ok{color:var(--ok)}.st-part{color:var(--warn)}.st-no{color:var(--muted)}
 
+#canvas.thermo{background:#14101f}#canvas.thermo #gridrect{opacity:.15}#canvas.thermo .part .body{filter:invert(1) grayscale(1)}#canvas.thermo .part text.lab,#canvas.thermo .part text.val{fill:#cbd5e1}#canvas.thermo .wire{stroke:#64748b}
+.heatblob{filter:blur(7px);opacity:.95;pointer-events:none}.heattxt{font:600 11px var(--mono);pointer-events:none;stroke:none}
+#heatlegend{position:absolute;right:12px;top:10px;background:rgba(15,23,42,.85);color:#e2e8f0;padding:6px 10px;border-radius:6px;font:11px var(--mono);pointer-events:none;z-index:4}
+#heatlegend .bar{height:10px;width:170px;border-radius:3px;margin:3px 0;background:linear-gradient(90deg,rgb(32,18,90),rgb(110,30,170) 12%,rgb(200,40,90) 24%,rgb(245,110,30) 40%,rgb(255,200,40) 64%,rgb(255,250,200))}
+#heatlegend .sc{display:flex;justify-content:space-between}#btn-heat.on{background:#7c3aed;color:#fff}
+
 </style>
 </head>
 <body>
@@ -118,6 +124,7 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
   <div class="grp opts" role="group" aria-label="Options">
     <label title="Affiche les tensions/courants dans l'inspecteur (sinon : instruments obligatoires)"><input type="checkbox" id="opt-aide"> Grandeurs affichées</label>
     <label title="Voir les pannes cachées, injecter des pannes, voir les corrigés"><input type="checkbox" id="opt-teacher"> Mode enseignant</label>
+    <button id="btn-heat" title="Caméra thermique : affiche la température estimée des composants (comme en vraie maintenance)">🌡 Thermographie</button>
     <button id="btn-fit" title="Recentrer la vue">⌖</button>
     <button id="btn-help" title="Aide et couverture du programme">? Aide</button>
   </div>
@@ -135,6 +142,7 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
   </aside>
   <section id="center">
     <div id="stage">
+      <div id="heatlegend" style="display:none">Thermographie (°C)<div class="bar"></div><div class="sc"><span>25</span><span>55</span><span>75</span><span>105</span><span>150+</span></div></div>
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Schéma électronique">
         <defs><pattern id="gridp" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="1" fill="#b9c3d1"/></pattern></defs>
         <g id="world"><rect id="gridrect" x="-4000" y="-4000" width="8000" height="8000" fill="url(#gridp)"/><g id="wires"></g><g id="parts"></g><g id="juncs"></g><g id="rubber"></g></g>
@@ -587,7 +595,8 @@ class Fuse extends El {
   stampLin(eng) { const open = this.burnt || this.fault === 'blown'; this.R = open ? 1e12 : this.p.R; eng.cond(this.ix[0], this.ix[1], 1 / this.R); }
   accept(eng, dt) {
     const v = eng.v(this.ix[0]) - eng.v(this.ix[1]); const I = v / this.R; this.I = I; if (this.burnt) return;
-    const u = (I * I) / (this.p.I * this.p.I * 1.7); if (heat(this.s, 'h', u, dt, this.p.fast ? 0.02 : 0.3, 1.5)) this.burn(eng, 'fusible grillé');
+    this.s.ms = (this.s.ms || 0) + (I * I - (this.s.ms || 0)) * Math.min(1, dt / 0.05);   // échauffement = I² moyen (pas les pointes de courant du redressement)
+    const u = this.s.ms / (this.p.I * this.p.I * 1.7); if (heat(this.s, 'h', u, dt, this.p.fast ? 0.02 : 0.3, 1.5)) this.burn(eng, 'fusible grillé');
   }
 }
 MODELS.fuse = (i, p) => new Fuse(i, p);
@@ -1308,9 +1317,18 @@ class Editor {
         const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; const gl = e.querySelector(p.type === 'led' ? '.led-glow' : '.lamp-glow');
         if (gl) { let o = 0; if (el && !p.burnt) o = p.type === 'led' ? Math.min(1, Math.max(0, (el.I || 0) / 0.012)) : (el.bright || 0); gl.setAttribute('opacity', (o * 0.85).toFixed(2)); }
       }
+      this.heatUpdate(p, e);
       if (p.type === 'multimeter') { const t = e.querySelector('.mm-read'); if (t && !sim.dirty) { const r = this.app.instr.reading(p); t.textContent = r.s + ' ' + r.u; } }
       if (p.type === 'psu') { const led = e.querySelector('.psu-led'); const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; if (led) led.style.fill = el && el.cc ? '#ef4444' : p.p.on ? '#22c55e' : '#6b7280'; }
     }
+  }
+  /* thermographie : halo coloré + température sous chaque composant */
+  setHeat(on) { this.heat = !!on; this.svg.classList.toggle('thermo', this.heat); const lg = $('#heatlegend'); if (lg) lg.style.display = this.heat ? '' : 'none'; if (!this.heat) this.svg.querySelectorAll('.heatov').forEach(n => n.remove()); }
+  heatUpdate(p, e) {
+    if (!this.heat || ['ground', 'multimeter', 'scope', 'psu', 'gbf', 'mains', 'battery'].includes(p.type)) return;
+    let g = e.querySelector('.heatov'); const T = (p.rt && p.rt.T) !== undefined ? p.rt.T : 25;
+    if (!g) { const bb = bbox(p); g = svgEl('g', { class: 'heatov' }); g.appendChild(svgEl('rect', { x: bb[0] - 6, y: bb[1] - 6, width: bb[2] - bb[0] + 12, height: bb[3] - bb[1] + 12, rx: 10, transform: `rotate(${p.rot})`, class: 'heatblob' })); const t = svgEl('text', { x: 0, y: Math.max(bb[3], bb[2]) + 24, class: 'heattxt', 'text-anchor': 'middle' }); g.appendChild(t); e.insertBefore(g, e.firstChild); }
+    g.firstChild.style.fill = NS.thermal.color(T); g.lastChild.textContent = Math.round(T) + ' °C'; g.lastChild.style.fill = T > 70 ? '#fca5a5' : '#e2e8f0';
   }
   /* ---------------- sélection ---------------- */
   select(id) { this.sel = id; this.selWire = null; this.selJ = null; this.render(); this.app.onSelect(id ? this.c.part(id) : null); }
@@ -1670,6 +1688,50 @@ NS.Instruments = Instruments;
 
 </script>
 <script>
+/* thermal.js — températures estimées des composants (« caméra thermique ») */
+(function (g) {
+'use strict';
+const NS = g.NS; const T0 = 25;
+/* cible : température d'équilibre selon la puissance dissipée / la puissance admissible */
+function target(p, el) {
+  const q = el.p || {}; const ratio = (P, Pn, dT) => T0 + (dT || 75) * Math.max(0, P) / Pn;
+  switch (p.type) {
+    case 'resistor': case 'ldr': case 'ctn': case 'pot': return { T: ratio(el.P || 0, p.type === 'resistor' ? (q.W || 0.25) : 0.25), tau: 4 };
+    case 'diode': return { T: ratio(Math.abs((el.V || 0) * (el.I || 0)), (q.Imax || 1) * 0.9), tau: 4 };
+    case 'led': return { T: ratio(Math.abs((el.V || 0) * (el.I || 0)), 0.06), tau: 3 };
+    case 'zener': return { T: ratio(Math.abs((el.V || 0) * (el.I || 0)), q.Pz || 0.5), tau: 4 };
+    case 'bjt': return { T: ratio(Math.abs((el.Vce || 0) * (el.Ic || 0)) + Math.abs((el.Vbe || 0) * (el.Ib || 0)), q.Pmax || 0.5), tau: 4 };
+    case 'regulator': return { T: el.T !== undefined ? el.T : T0, tau: 0 };
+    case 'transformer': return { T: ratio((el.I1 || 0) ** 2 * (q.Rp || 0) + (el.I2 || 0) ** 2 * (q.Rs || 0), (q.VA || 5) * 0.25), tau: 12 };
+    case 'capacitor': return { T: ratio((el.I || 0) ** 2 * ((el.q && el.q.esr) || q.esr || 0), 0.25, 60), tau: 6 };
+    case 'inductor': return { T: ratio((el.I || 0) ** 2 * (q.R || 0), Math.max(1e-6, (q.Imax || 1) ** 2 * (q.R || 0.1))), tau: 6 };
+    case 'fuse': if (p.burnt || p.fault === 'blown') return { T: T0, tau: 2 }; return { T: T0 + 70 * ((el.s && el.s.ms) || 0) / (q.I * q.I), tau: 2 };
+    case 'lamp': return { T: T0 + 130 * (el.bright || 0), tau: 1 };
+    case 'relay': return { T: ratio((el.I || 0) ** 2 * q.Rc, (q.V * q.V / q.Rc) || 0.4, 40), tau: 8 };
+    case 'opamp': return { T: T0 + 10 * Math.abs(el.Iout || 0) / 0.02, tau: 4 };
+    default: return null;
+  }
+}
+NS.thermal = {
+  update(sim, dt) {
+    if (sim.dirty) return;
+    for (const p of sim.c.parts) {
+      const el = sim.elOf.get(p.id); if (!el) continue; const tg = target(p, el); if (!tg) continue;
+      const rt = p.rt || (p.rt = {}); let Tt = Math.min(350, tg.T); if (!isFinite(Tt)) Tt = T0; const Tc = rt.T === undefined ? T0 : rt.T;
+      rt.T = tg.tau <= 0 ? Tt : Tc + (Tt - Tc) * (1 - Math.exp(-dt / tg.tau));
+    }
+  },
+  /* palette « fer » des caméras thermiques */
+  color(T) {
+    const S = [[25, [32, 18, 90]], [40, [110, 30, 170]], [55, [200, 40, 90]], [75, [245, 110, 30]], [105, [255, 200, 40]], [150, [255, 250, 200]]];
+    if (T <= S[0][0]) return 'rgb(' + S[0][1].join(',') + ')'; for (let i = 1; i < S.length; i++) if (T <= S[i][0]) { const a = S[i - 1], b = S[i], u = (T - a[0]) / (b[0] - a[0]); return 'rgb(' + a[1].map((x, k) => Math.round(x + (b[1][k] - x) * u)).join(',') + ')'; }
+    return 'rgb(255,250,200)';
+  },
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 /* app.js — application : boucle de simulation, palette, inspecteur, TP, fichiers */
 (function (g) {
 'use strict';
@@ -1694,6 +1756,7 @@ class App {
     requestAnimationFrame(t => this.loop(t));
     const dt = Math.min(0.1, (ts - this.last) / 1000); this.last = ts;
     if (this.running && this.circuit.parts.length) { try { this.sim.advance(dt * this.speed, 12); } catch (e) { console.error(e); this.running = false; this.toast('Erreur de simulation : ' + e.message, 'err'); } }
+    if (this.running) NS.thermal.update(this.sim, dt * this.speed);
     this.editor.dyn(); this.instr.update();
     $('#simtime').textContent = 't = ' + this.sim.eng.t.toFixed(3) + ' s';
     const wb = $('#simwarn'); const w = this.sim.eng.warn; wb.style.display = w ? '' : 'none'; if (w) wb.textContent = '⚠ ' + w;
@@ -1715,7 +1778,7 @@ class App {
   toast(msg, cls) { this.log(msg, cls === 'err' ? 'burn' : cls); }
   onSimEvent(e) {
     const r = e.inst && e.inst.ref || '';
-    if (e.type === 'burn') { this.log('💥 ' + r + ' (' + PARTS[e.inst.type].label + ') est détruit : ' + e.msg, 'burn'); this.refreshInspector(true); }
+    if (e.type === 'burn') { if (e.inst.rt) e.inst.rt.T = Math.max(e.inst.rt.T || 25, 190); this.log('💥 ' + r + ' (' + PARTS[e.inst.type].label + ') est détruit : ' + (e.msg === 'primaire' ? 'enroulement surchauffé (primaire coupé)' : e.msg), 'burn'); this.refreshInspector(true); }
     else if (e.type === 'warn') this.log('⚠ ' + r + ' : ' + e.msg, 'warn'); else this.log(r + ' : ' + e.msg, 'info');
   }
   note(ref, text, mode) { this.notes.push({ t: this.sim.eng.t, ref, text, mode }); this.renderNotes(); this.log('Mesure notée : ' + text + ' (' + mode + ')', 'info'); }
@@ -2533,7 +2596,7 @@ regScenario({
   faultInfo: v => PANNES[v % PANNES.length].info,
   desc: 'Une alimentation stabilisée 5 V / 110 mA (secteur → fusible → transformateur → pont → filtrage → régulateur 7805) ne fonctionne plus correctement. Le client décrit le symptôme. À vous de <b>localiser la panne</b>, de <b>proposer et réaliser le dépannage</b>, puis de <b>contrôler</b> le fonctionnement. La panne change à chaque « ↻ Autre panne ».',
   objectives: ['Appliquer une démarche de dépannage structurée', 'Mesurer en remontant la chaîne fonctionnelle (secteur → charge)', 'Utiliser ohmmètre, testeur de diode, voltmètre et oscilloscope pour localiser le défaut', 'Remplacer uniquement le composant défectueux et rechercher la cause', 'Contrôler le résultat'],
-  steps: ['<b>Constat :</b> lisez le symptôme (« Sujet » / carnet). Mesurez la tension de sortie sur RL.', '<b>Hypothèses :</b> quels blocs peuvent expliquer ce symptôme ? Notez-les dans le carnet.', '<b>Mesures :</b> avancez bloc par bloc : tension après F1, secondaire du transformateur (V∿), tension sur C1 (V⎓ + oscilloscope), entrée/sortie de U1. Les composants se testent hors tension à l\'ohmmètre ou au testeur de diode.', '<b>Localisation :</b> désignez le composant en cause dans la question ci-dessous.', '<b>Réparation :</b> remplacez-le (inspecteur → « Remplacer le composant ») puis remettez sous tension. Pensez à chercher la <i>cause</i> de la panne (un fusible qui saute n\'est jamais la cause !).', '<b>Contrôle :</b> 5 V stables, ondulation faible, aucun échauffement anormal.'],
+  steps: ['<b>Constat :</b> lisez le symptôme (« Sujet » / carnet). Mesurez la tension de sortie sur RL.', '<b>Hypothèses :</b> quels blocs peuvent expliquer ce symptôme ? Notez-les dans le carnet.', '<b>Caméra thermique :</b> activez « 🌡 Thermographie » (barre du haut) : un composant anormalement chaud (court-circuit, surcharge, électrolytique qui chauffe) se repère tout de suite, comme à la caméra thermique en maintenance. Attention : un composant déjà détruit refroidit ensuite.', '<b>Mesures :</b> avancez bloc par bloc : tension après F1, secondaire du transformateur (V∿), tension sur C1 (V⎓ + oscilloscope), entrée/sortie de U1. Les composants se testent hors tension à l\'ohmmètre ou au testeur de diode.', '<b>Localisation :</b> désignez le composant en cause dans la question ci-dessous.', '<b>Réparation :</b> remplacez-le (inspecteur → « Remplacer le composant ») puis remettez sous tension. Pensez à chercher la <i>cause</i> de la panne (un fusible qui saute n\'est jamais la cause ! Chaque remise sous tension sur un court-circuit échauffe le transformateur).', '<b>Contrôle :</b> 5 V stables, ondulation faible, aucun échauffement anormal.'],
   questions: [
     { q: 'Quelle est la tension de sortie constatée <b>avant</b> toute réparation ?', type: 'choice', options: SORTIES, correct: c => PANNES[c.tp.variant % PANNES.length].sortie },
     { q: 'Quel composant est défectueux ?', type: 'part', correct: c => { const f = PANNES[c.tp.variant % PANNES.length]; return f.any || f.ref; } },
@@ -2554,7 +2617,7 @@ regScenario({
     { label: 'Le composant défectueux a été remplacé', run: c => { const f = PANNES[c.tp.variant % PANNES.length]; return c.replaced(f.ref) >= 1; } },
     { label: 'Pas de remplacement inutile (on ne change que ce qui est défectueux)', run: c => { const f = PANNES[c.tp.variant % PANNES.length]; return c.c.parts.every(p => p.ref === f.ref || (f.also || []).includes(p.ref) || !(p.replaced > 0)); } },
   ],
-  correction: '<p>Démarche : on remonte la chaîne. <b>F1 grillé</b> : tension nulle après F1 (mesure hors tension : ohmmètre ∞ sur F1). <b>D2 ouverte</b> : sur C1 on observe 50 Hz au lieu de 100 Hz. <b>C1 séché</b> : ondulation énorme, ESR haute. <b>U1 hors service</b> : 17 V à l\'entrée, 0 V à la sortie. <b>U1 en court-circuit</b> : 17 V en sortie. <b>D1 en court-circuit</b> : le secondaire est court-circuité à chaque alternance → F1 saute et D2 est détruite par la surintensité. Au testeur de diode D1 et D2 conduisent dans les deux sens : on remplace D1, D2 <i>et</i> F1, sinon le fusible resauterait aussitôt. <b>Secondaire coupé</b> : fusible bon, 230 V au primaire, 0 V au secondaire (le primaire se contrôle à l\'ohmmètre).</p><p>Contrôle final : 5,00 V en sortie, ondulation faible, boîtier de U1 tiède.</p>' + METHODE,
+  correction: '<p>Démarche : on remonte la chaîne. <b>F1 grillé</b> : tension nulle après F1 (mesure hors tension : ohmmètre ∞ sur F1). <b>D2 ouverte</b> : sur C1 on observe 50 Hz au lieu de 100 Hz. <b>C1 séché</b> : ondulation énorme, ESR haute. <b>U1 hors service</b> : 17 V à l\'entrée, 0 V à la sortie. <b>U1 en court-circuit</b> : 17 V en sortie. <b>D1 en court-circuit</b> : le secondaire est court-circuité à chaque alternance → F1 saute et D2 est détruite par la surintensité. Au testeur de diode D1 et D2 conduisent dans les deux sens : on remplace D1, D2 <i>et</i> F1, sinon le fusible resauterait aussitôt. <b>Secondaire coupé</b> : fusible bon, 230 V au primaire, 0 V au secondaire (le primaire se contrôle à l\'ohmmètre).</p><p>Attention : remettre un fusible sur un court-circuit non éliminé échauffe à chaque fois le transformateur (le fusible protège le câblage, pas le bobinage) ; au bout de quelques essais le primaire du transformateur est détruit. On ne remplace jamais un fusible sans avoir cherché la cause.</p><p>Contrôle final : 5,00 V en sortie, ondulation faible, boîtier de U1 tiède.</p>' + METHODE,
 });
 
 /* ============================================================ D2 — platine transistor + LED */
@@ -2774,6 +2837,7 @@ try {
 } catch (e) { /* session illisible : on repart de zéro */ }
 app.renderTP();
 if (!restored) { const sc = NS.SCENARIOS[0]; if (sc && !/[?&]blank/.test(location.search)) app.loadScenario(sc); }
+$('#btn-heat').onclick = e => { const on = !app.editor.heat; app.editor.setHeat(on); e.currentTarget.classList.toggle('on', on); };
 /* aide + couverture du programme */
 $('#btn-help').onclick = () => {
   const ST = { ok: ['✔ simulé', 'st-ok'], part: ['◐ partiel', 'st-part'], no: ['○ prévu', 'st-no'] }; const cov = NS.COVERAGE;

@@ -25,6 +25,7 @@
   <div class="grp opts" role="group" aria-label="Options">
     <label title="Affiche les tensions/courants dans l'inspecteur (sinon : instruments obligatoires)"><input type="checkbox" id="opt-aide"> Grandeurs affichées</label>
     <label title="Voir les pannes cachées, injecter des pannes, voir les corrigés"><input type="checkbox" id="opt-teacher"> Mode enseignant</label>
+    <button id="btn-heat" title="Caméra thermique : affiche la température estimée des composants (comme en vraie maintenance)">🌡 Thermographie</button>
     <button id="btn-fit" title="Recentrer la vue">⌖</button>
     <button id="btn-help" title="Aide et couverture du programme">? Aide</button>
   </div>
@@ -42,6 +43,7 @@
   </aside>
   <section id="center">
     <div id="stage">
+      <div id="heatlegend" style="display:none">Thermographie (°C)<div class="bar"></div><div class="sc"><span>25</span><span>55</span><span>75</span><span>105</span><span>150+</span></div></div>
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Schéma électronique">
         <defs><pattern id="gridp" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="1" fill="#b9c3d1"/></pattern></defs>
         <g id="world"><rect id="gridrect" x="-4000" y="-4000" width="8000" height="8000" fill="url(#gridp)"/><g id="wires"></g><g id="parts"></g><g id="juncs"></g><g id="rubber"></g></g>
@@ -71,6 +73,7 @@
 <script src="js/editor_ser.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/instruments.js"></script>
+<script src="js/thermal.js"></script>
 <script src="js/app.js"></script>
 <script src="js/scenarios.js"></script>
 <script src="js/tp_base.js"></script>

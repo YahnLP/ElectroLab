@@ -197,7 +197,8 @@ class Fuse extends El {
   stampLin(eng) { const open = this.burnt || this.fault === 'blown'; this.R = open ? 1e12 : this.p.R; eng.cond(this.ix[0], this.ix[1], 1 / this.R); }
   accept(eng, dt) {
     const v = eng.v(this.ix[0]) - eng.v(this.ix[1]); const I = v / this.R; this.I = I; if (this.burnt) return;
-    const u = (I * I) / (this.p.I * this.p.I * 1.7); if (heat(this.s, 'h', u, dt, this.p.fast ? 0.02 : 0.3, 1.5)) this.burn(eng, 'fusible grillé');
+    this.s.ms = (this.s.ms || 0) + (I * I - (this.s.ms || 0)) * Math.min(1, dt / 0.05);   // échauffement = I² moyen (pas les pointes de courant du redressement)
+    const u = this.s.ms / (this.p.I * this.p.I * 1.7); if (heat(this.s, 'h', u, dt, this.p.fast ? 0.02 : 0.3, 1.5)) this.burn(eng, 'fusible grillé');
   }
 }
 MODELS.fuse = (i, p) => new Fuse(i, p);

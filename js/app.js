@@ -22,6 +22,7 @@ class App {
     requestAnimationFrame(t => this.loop(t));
     const dt = Math.min(0.1, (ts - this.last) / 1000); this.last = ts;
     if (this.running && this.circuit.parts.length) { try { this.sim.advance(dt * this.speed, 12); } catch (e) { console.error(e); this.running = false; this.toast('Erreur de simulation : ' + e.message, 'err'); } }
+    if (this.running) NS.thermal.update(this.sim, dt * this.speed);
     this.editor.dyn(); this.instr.update();
     $('#simtime').textContent = 't = ' + this.sim.eng.t.toFixed(3) + ' s';
     const wb = $('#simwarn'); const w = this.sim.eng.warn; wb.style.display = w ? '' : 'none'; if (w) wb.textContent = '⚠ ' + w;
@@ -43,7 +44,7 @@ class App {
   toast(msg, cls) { this.log(msg, cls === 'err' ? 'burn' : cls); }
   onSimEvent(e) {
     const r = e.inst && e.inst.ref || '';
-    if (e.type === 'burn') { this.log('💥 ' + r + ' (' + PARTS[e.inst.type].label + ') est détruit : ' + e.msg, 'burn'); this.refreshInspector(true); }
+    if (e.type === 'burn') { if (e.inst.rt) e.inst.rt.T = Math.max(e.inst.rt.T || 25, 190); this.log('💥 ' + r + ' (' + PARTS[e.inst.type].label + ') est détruit : ' + (e.msg === 'primaire' ? 'enroulement surchauffé (primaire coupé)' : e.msg), 'burn'); this.refreshInspector(true); }
     else if (e.type === 'warn') this.log('⚠ ' + r + ' : ' + e.msg, 'warn'); else this.log(r + ' : ' + e.msg, 'info');
   }
   note(ref, text, mode) { this.notes.push({ t: this.sim.eng.t, ref, text, mode }); this.renderNotes(); this.log('Mesure notée : ' + text + ' (' + mode + ')', 'info'); }

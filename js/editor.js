@@ -126,9 +126,18 @@ class Editor {
         const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; const gl = e.querySelector(p.type === 'led' ? '.led-glow' : '.lamp-glow');
         if (gl) { let o = 0; if (el && !p.burnt) o = p.type === 'led' ? Math.min(1, Math.max(0, (el.I || 0) / 0.012)) : (el.bright || 0); gl.setAttribute('opacity', (o * 0.85).toFixed(2)); }
       }
+      this.heatUpdate(p, e);
       if (p.type === 'multimeter') { const t = e.querySelector('.mm-read'); if (t && !sim.dirty) { const r = this.app.instr.reading(p); t.textContent = r.s + ' ' + r.u; } }
       if (p.type === 'psu') { const led = e.querySelector('.psu-led'); const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; if (led) led.style.fill = el && el.cc ? '#ef4444' : p.p.on ? '#22c55e' : '#6b7280'; }
     }
+  }
+  /* thermographie : halo coloré + température sous chaque composant */
+  setHeat(on) { this.heat = !!on; this.svg.classList.toggle('thermo', this.heat); const lg = $('#heatlegend'); if (lg) lg.style.display = this.heat ? '' : 'none'; if (!this.heat) this.svg.querySelectorAll('.heatov').forEach(n => n.remove()); }
+  heatUpdate(p, e) {
+    if (!this.heat || ['ground', 'multimeter', 'scope', 'psu', 'gbf', 'mains', 'battery'].includes(p.type)) return;
+    let g = e.querySelector('.heatov'); const T = (p.rt && p.rt.T) !== undefined ? p.rt.T : 25;
+    if (!g) { const bb = bbox(p); g = svgEl('g', { class: 'heatov' }); g.appendChild(svgEl('rect', { x: bb[0] - 6, y: bb[1] - 6, width: bb[2] - bb[0] + 12, height: bb[3] - bb[1] + 12, rx: 10, transform: `rotate(${p.rot})`, class: 'heatblob' })); const t = svgEl('text', { x: 0, y: Math.max(bb[3], bb[2]) + 24, class: 'heattxt', 'text-anchor': 'middle' }); g.appendChild(t); e.insertBefore(g, e.firstChild); }
+    g.firstChild.style.fill = NS.thermal.color(T); g.lastChild.textContent = Math.round(T) + ' °C'; g.lastChild.style.fill = T > 70 ? '#fca5a5' : '#e2e8f0';
   }
   /* ---------------- sélection ---------------- */
   select(id) { this.sel = id; this.selWire = null; this.selJ = null; this.render(); this.app.onSelect(id ? this.c.part(id) : null); }

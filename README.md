@@ -13,6 +13,7 @@ Simulateur **hors ligne** (HTML/CSS/JS pur, aucune dépendance) : éditeur de sc
 | Composants | R, LDR, CTN, potentiomètre, C (ESR, électrolytique polarisé), L, transformateur (couplé), diode / Zener / LED, BJT (Ebers-Moll + Early + avalanche), AOP, régulateur 78xx (protection thermique), relais (hystérésis, bobine inductive), lampe (inertie thermique), fusible (modèle thermique), interrupteur, bouton poussoir |
 | Sources | Alimentation de labo (CV/CC), GBF, pile, secteur 230 V |
 | Mesure | Multimètre (V⎓, V∿, mA, A, Ω, diode, continuité ; 10 MΩ, shunt, **fusible interne**), oscilloscope 2 voies (déclenchement, couplage AC, mesures auto) |
+| Thermographie | Bouton « 🌡 Thermographie » : température estimée de chaque composant (puissance dissipée / admissible, inertie thermique), palette de caméra thermique |
 | Pannes | Défauts injectables (ouvert, court-circuit, dérive, électrolytique séché, …), destruction thermique/électrique, pannes en cascade |
 
 ## TP (22 TP, avec variantes)

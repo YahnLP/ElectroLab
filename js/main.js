@@ -12,6 +12,7 @@ try {
 } catch (e) { /* session illisible : on repart de zéro */ }
 app.renderTP();
 if (!restored) { const sc = NS.SCENARIOS[0]; if (sc && !/[?&]blank/.test(location.search)) app.loadScenario(sc); }
+$('#btn-heat').onclick = e => { const on = !app.editor.heat; app.editor.setHeat(on); e.currentTarget.classList.toggle('on', on); };
 /* aide + couverture du programme */
 $('#btn-help').onclick = () => {
   const ST = { ok: ['✔ simulé', 'st-ok'], part: ['◐ partiel', 'st-part'], no: ['○ prévu', 'st-no'] }; const cov = NS.COVERAGE;
