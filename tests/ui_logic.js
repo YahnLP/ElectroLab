@@ -16,6 +16,12 @@ const { chromium } = require('/opt/npm-tools/node_modules/playwright');
   // mauvais débit
   await p.evaluate(() => { __app.circuit.byRef('LA1').p.baud = 19200; }); await p.waitForTimeout(600);
   ok(await p.evaluate(() => /erreur/.test(document.querySelector('.lgdec').textContent)), 'mauvais débit → erreurs signalées');
+  // mauvaise parité → aide « parité » ; mauvais débit → aide « débit »
+  await p.evaluate(() => { const g = __app.circuit.byRef('G1'); g.p.parity = 'O'; g.p.msg = 'AT\\r\\n'; const la = __app.circuit.byRef('LA1'); la.p.baud = 9600; la.p.parity = 'N'; la.p.inv = true; la.p.thr = 0; const e = __app.sim.elOf.get(la.id); e.s.ring = null; }); await p.waitForTimeout(1800);
+  const hh = await p.evaluate(() => (document.querySelector('.lghint') || {}).textContent); ok(/semble bon/.test(hh || ''), 'parité fausse → conseil format : ' + hh);
+  await p.evaluate(() => { __app.circuit.byRef('LA1').p.baud = 4800; __app.circuit.byRef('LA1').p.parity = 'O'; }); await p.waitForTimeout(1200);
+  ok(await p.evaluate(() => /débit/.test((document.querySelector('.lghint') || {}).textContent || '')), 'débit faux → conseil sur le débit');
+  await p.evaluate(() => { const g = __app.circuit.byRef('G1'); g.p.parity = 'N'; g.p.msg = 'Bonjour\\r\\n'; const la = __app.circuit.byRef('LA1'); la.p.baud = 9600; la.p.parity = 'N'; }); await p.waitForTimeout(1500);
   // STOP : capture figée
   await p.evaluate(() => { const la = __app.circuit.byRef('LA1'); la.p.baud = 9600; la.p.run = false; }); await p.waitForTimeout(3000);
   ok(await p.evaluate(() => /Bonjour/.test(document.querySelector('.lgtxt').textContent)), 'STOP : décodage toujours disponible');

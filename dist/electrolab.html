@@ -123,6 +123,8 @@ details.cours summary{color:#1e40af}.coursbody{font-size:13.5px;line-height:1.45
 .lgdec{margin-top:6px;background:#111a15;border:1px solid #2d3b33;border-radius:6px;padding:6px 8px;font-size:12.5px;max-height:210px;overflow:auto}.lgtxt{font:13px var(--mono);background:#0b1410;padding:4px 6px;border-radius:4px;margin:4px 0;white-space:pre-wrap;word-break:break-all}.lghex{font:12px var(--mono);color:#cbd5e1;word-break:break-all}.lgfr{margin:5px 0;padding:3px 6px;border-left:3px solid #38bdf8;background:#0f1a14}
 .scwin button,.lgwin button{background:#3b4a5a;color:#f1f5f9;border:1px solid #5b6b7b;border-radius:5px;padding:3px 8px;cursor:pointer}.scwin button:hover,.lgwin button:hover{background:#4b5d70}
 
+.lghint{margin:4px 0;padding:4px 8px;border-left:3px solid #facc15;background:#2a2a14;color:#fde68a;font-size:12px}
+
 </style>
 </head>
 <body>
@@ -2342,7 +2344,7 @@ I.logic = function (inst) {
   const protoBox = h('div.lgproto'); let lastProto = null;
   const drawProto = () => {
     protoBox.innerHTML = ''; const f = (l, el) => protoBox.append(h('label.lgf', l + ' ', el));
-    if (p.proto === 'uart') { f('RX', chSel('chA')); f('Débit', sel('baud', BAUDS, b => b + ' bd', true)); f('Données', sel('bits', [7, 8], null, true)); f('Parité', sel('parity', ['N', 'E', 'O'], x => ({ N: 'aucune', E: 'paire', O: 'impaire' }[x]))); f('Stop', sel('stop', [1, 2], null, true)); protoBox.append(chk('inv', 'Logique inversée (RS-232 ±12 V)'), h('button', { title: 'Estime le débit à partir de la plus courte impulsion mesurée', onclick: () => this.autoBaud(inst) }, 'Auto-débit')); }
+    if (p.proto === 'uart') { f('RX', chSel('chA')); f('Débit', sel('baud', BAUDS, b => b + ' bd', true)); f('Données', sel('bits', [7, 8], null, true)); f('Parité', sel('parity', ['N', 'E', 'O'], x => ({ N: 'aucune', E: 'paire', O: 'impaire' }[x]))); f('Stop', sel('stop', [1, 2], null, true)); protoBox.append(chk('inv', 'Logique inversée (RS-232 ±12 V)'), h('button', { title: 'Estime le débit à partir de la plus courte impulsion mesurée', onclick: () => { this.autoBaud(inst); drawProto(); } }, 'Auto-débit')); }
     else if (p.proto === 'modbus') { f('Ligne A', chSel('chA')); f('Ligne B', chSel('chB')); f('Débit', sel('baud', BAUDS, b => b + ' bd', true)); f('Parité', sel('parity', ['N', 'E', 'O'], x => ({ N: 'aucune', E: 'paire', O: 'impaire' }[x]))); f('Stop', sel('stop', [1, 2], null, true)); }
     else if (p.proto === 'i2c') { f('SCL', chSel('chA')); f('SDA', chSel('chB')); }
     else if (p.proto === 'spi') { f('CS', chSel('chA')); f('SCK', chSel('chB')); f('MOSI', chSel('chC')); f('MISO', chSel('chD')); f('Mode', sel('mode', [0, 1, 2, 3], m => m + ' (CPOL ' + ((m >> 1) & 1) + ', CPHA ' + (m & 1) + ')', true)); }
@@ -2379,6 +2381,15 @@ I.autoBaud = function (inst) {
   const o = this.logicRing(inst); if (!o) return; const p = inst.p; let ev = this.logicEvents(inst, o.r, p.chA); let pw = Infinity; for (let i = 1; i < ev.length; i++) pw = Math.min(pw, ev[i][0] - ev[i - 1][0]); if (!isFinite(pw)) return;
   const b = 1 / pw; p.baud = BAUDS.reduce((a, c) => Math.abs(Math.log(c / b)) < Math.abs(Math.log(a / b)) ? c : a); this.app.saveSoon();
 };
+/* conseil quand le décodage UART comporte des erreurs : un autre format, au même débit, décode-t-il proprement ? (mis en cache 1,5 s) */
+I.uartHint = function (inst, ev, tEnd, sync, nerr) {
+  const p = inst.p, key = [p.baud, p.bits, p.parity, p.stop, p.inv, p.thr, Math.floor(Date.now() / 1500)].join('/'); if (inst.hintKey === key) return inst.hintTxt;
+  let best = null;
+  for (const bits of [7, 8]) for (const parity of ['N', 'E', 'O']) for (const stop of [1, 2]) { if (bits === +p.bits && parity === p.parity && stop === +p.stop) continue; const d = P.uartDecode(ev, { baud: p.baud, bits, parity, stop, sync }, tEnd); const e = d.filter(b => b.err).length; if (d.length >= 3 && (!best || e / d.length < best.r)) best = { r: e / d.length }; }
+  const cur = P.uartDecode(ev, { baud: p.baud, bits: p.bits, parity: p.parity, stop: p.stop, sync }, tEnd); const r0 = cur.length ? nerr / cur.length : 1;
+  const t = best && best.r < 0.15 && r0 > Math.max(0.1, best.r * 3) ? 'Le <b>débit</b> semble bon : un autre format décode sans erreur. Revoyez la <b>parité</b>, le nombre de <b>bits de données</b> et de <b>stops</b>.' : 'Peu de chances que le <b>débit</b> soit bon : mesurez la durée d\'un bit (curseurs) ou utilisez Auto-débit, puis ajustez le format.';
+  inst.hintKey = key; inst.hintTxt = t; return t;
+};
 /* décodage → { spans: [{ch, t0, t1, label, err}], html } */
 I.logicDecode = function (inst, r) {
   const p = inst.p, spans = []; const sync = r.n >= r.cap; let html = ''; const ok = '<span style="color:#4ade80">', ko = '<span style="color:#f87171">';
@@ -2387,7 +2398,7 @@ I.logicDecode = function (inst, r) {
     let ev = this.logicEvents(inst, r, p.chA); if (p.inv) ev = P.invert(ev); const d = P.uartDecode(ev, { baud: p.baud, bits: p.bits, parity: p.parity, stop: p.stop, sync }, tEnd);
     d.forEach(b => spans.push({ ch: p.chA, t0: b.t0, t1: b.t1, label: P.hex(b.byte) + ' ' + P.ascii(b.byte), err: b.err }));
     const txt = d.map(b => b.err ? '⚠' : P.ascii(b.byte)).join(''); const nerr = d.filter(b => b.err).length;
-    html = '<b>UART ' + p.baud + ' bauds · ' + p.bits + (p.parity === 'N' ? 'N' : p.parity) + p.stop + '</b> — ' + d.length + ' octet(s) décodé(s)' + (nerr ? ' · ' + ko + nerr + ' erreur(s) (parité / trame) : débit ou format incorrect ?</span>' : ' · ' + ok + 'aucune erreur</span>') + '<div class="lgtxt">' + esc(txt.slice(-300)) + '</div>' +
+    html = '<b>UART ' + p.baud + ' bauds · ' + p.bits + (p.parity === 'N' ? 'N' : p.parity) + p.stop + '</b> — ' + d.length + ' octet(s) décodé(s)' + (nerr ? ' · ' + ko + nerr + ' erreur(s) (parité / trame) : débit ou format incorrect ?</span>' : ' · ' + ok + 'aucune erreur</span>') + (nerr ? '<div class="lghint">💡 ' + this.uartHint(inst, ev, tEnd, sync, nerr) + ' Les erreurs sont normales tant que le format n\'est pas le bon.</div>' : '') + '<div class="lgtxt">' + esc(txt.slice(-300)) + '</div>' +
       '<div class="lghex">' + d.slice(-48).map(b => (b.err ? ko : '<span>') + P.hex(b.byte) + '</span>').join(' ') + '</div>';
   } else if (p.proto === 'modbus') {
     const ev = this.logicEvents(inst, r, p.chB, p.chA); const fr = P.modbusDecode(ev, { baud: p.baud, parity: p.parity, stop: p.stop, sync }, tEnd);
@@ -4043,7 +4054,7 @@ regScenario({
   refs: 'Transmission série asynchrone ; trame UART ; débit ; parité ; niveaux TTL et RS-232 ; analyseur logique',
   desc: 'Un émetteur série (dont les paramètres sont <b>inconnus</b>) envoie un message de façon répétée. À l\'aide de l\'<b>analyseur logique</b>, retrouvez le débit, le format de la trame (bits de données, parité, stops) et le niveau électrique, puis configurez le décodeur pour lire le message.',
   objectives: ['Relier un analyseur logique à une ligne série (voie + masse commune)', 'Mesurer la durée d\'un bit aux curseurs et en déduire le débit', 'Identifier le format de trame : start, bits de données (LSB d\'abord), parité, stop', 'Distinguer UART TTL / RS-232 (±12 V, logique inversée) et régler le seuil', 'Décoder le message ASCII'],
-  steps: ['Câblez l\'analyseur logique : <b>D0 → TX</b> de l\'émetteur et <b>GND → masse</b>. Double-clic sur LA pour l\'ouvrir.', 'Observez le chronogramme (AUTO règle la base de temps). Au repos la ligne est à quel niveau ? Quelle est la durée du plus petit créneau ? <b>T<sub>bit</sub> = 1/débit</b>.', 'Mesurez avec les curseurs, choisissez le décodeur <b>UART</b> et réglez le débit. Un débit faux donne du « bruit » ou des erreurs.', 'Ajustez nombre de bits, parité, stops jusqu\'à ce que le décodeur n\'indique <b>aucune erreur</b>. Si les niveaux sont ±12 V (RS-232) : seuil à 0 V et case « inversé ».', 'Lisez le message puis répondez aux questions.'],
+  steps: ['Câblez l\'analyseur logique : <b>D0 → TX</b> de l\'émetteur et <b>GND → masse</b>. Double-clic sur LA pour l\'ouvrir.', 'Observez le chronogramme (bouton <b>Auto</b> règle la base de temps). Au repos la ligne est à quel niveau ? Quelle est la durée du plus petit créneau ? <b>T<sub>bit</sub> = 1/débit</b>.', 'Choisissez le décodeur <b>UART</b>. Trouvez le <b>débit</b> : bouton <b>Auto-débit</b> (il mesure la plus courte impulsion) ou curseurs (glisser sur le chronogramme). <i>Tant que le réglage n\'est pas bon, des erreurs rouges et du texte illisible sont NORMAUX : c\'est le signe qu\'il faut continuer à chercher.</i>', '<b>Méthode</b> : 1) le débit d\'abord (sinon tout est en erreur) ; 2) si seuls certains octets sont en erreur « parité », changez la <b>parité</b> (ou 7/8 bits) ; 3) si les erreurs portent sur les <b>stops</b>, vérifiez bits de données et nombre de stops. L\'analyseur affiche une 💡 aide sous le décodage.', 'Si les niveaux sont ±12 V (RS-232) : seuil à <b>0 V</b> et case « logique inversée ». Réglage correct = <b>« aucune erreur »</b> et un message lisible.', 'Lisez le message puis répondez aux questions.'],
   questions: [
     { q: 'Débit de la liaison (en bauds)', answer: c => uv(c).baud, tol: 0.03, unit: 'bauds' },
     { q: 'Durée d\'un bit (en µs)', answer: c => 1e6 / uv(c).baud, tol: 0.05, unit: 'µs' },
