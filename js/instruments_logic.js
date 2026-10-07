@@ -11,7 +11,7 @@ const tl = v => { const a = Math.abs(v); return a >= 1 ? trim(v.toPrecision(3)) 
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 I.logic = function (inst) {
-  const app = this.app, p = inst.p; const W = 760, H = 372;
+  const app = this.app, p = inst.p; const W = 760, H = 222;
   const cv = h('canvas', { width: W, height: H }); const dec = h('div.lgdec'); const info = h('div.lginfo');
   const save = () => app.saveSoon();
   const sel = (k, opts, f, num) => h('select', { onchange: e => { p[k] = num ? +e.target.value : e.target.value; save(); } }, opts.map(o => h('option', { value: o, selected: String(p[k]) === String(o) }, f ? f(o) : o)));
@@ -34,16 +34,17 @@ I.logic = function (inst) {
   const ctl = h('div.lgctl',
     h('fieldset', h('legend', 'BASE DE TEMPS'), sel('tdiv', TD, v => tl(v) + '/div', true), h('div.lgrow', shift(-1), shift(1), h('button', { title: 'Revient à la fenêtre de base', onclick: () => { p.pos = 0; save(); } }, '⟲'), runb), h('button', { title: 'Choisit une base de temps adaptée à l\'activité détectée', onclick: () => this.logicAuto(inst) }, 'Auto')),
     h('fieldset', h('legend', 'DÉCLENCHEMENT'), h('label', 'Voie ', chSel('trigCh', true)), sel('edge', ['down', 'up'], v => v === 'up' ? 'Front montant ↗' : 'Front descendant ↘')),
-    h('fieldset', h('legend', 'SEUIL LOGIQUE'), h('label', 'Seuil (V) ', nin('thr', 0.1, -30, 30)), h('div.small', '3,3 V/5 V : 1,65 V · RS-232 : 0 V')),
+    h('fieldset', h('legend', 'SEUIL LOGIQUE'), h('label', { title: '3,3 V / 5 V : 1,65 V · RS-232 et Modbus différentiel : 0 V' }, 'Seuil (V) ', nin('thr', 0.1, -30, 30))),
     h('fieldset.lgwide', h('legend', 'DÉCODEUR'), h('label', 'Protocole ', protoSel), protoBox));
-  const guide = h('details.lghelp', h('summary', '❓ Guide d\'utilisation de l\'analyseur logique'), h('div', { html: `<ol><li><b>Câblage</b> : une voie D0…D7 par signal à observer, et la broche <b>GND de l'analyseur reliée à la masse du montage</b> (sinon aucun niveau n'est lu).</li>
+  const guide = h('div.lghelp', h('b', 'Guide d\'utilisation de l\'analyseur logique'), h('div', { html: `<ol><li><b>Câblage</b> : une voie D0…D7 par signal à observer, et la broche <b>GND de l'analyseur reliée à la masse du montage</b> (sinon aucun niveau n'est lu).</li>
 <li><b>Base de temps</b> (µs ou ms par division, 10 divisions) : <b>Auto</b> la règle d'après les signaux ; ◀ ▶ décalent la fenêtre ; ⟲ revient au début. Pour voir une trame UART entière, visez environ 10 à 12 bits dans la fenêtre.</li>
 <li><b>RUN / STOP</b> : RUN = défilement continu ; STOP fige la capture pour l'étudier tranquillement (curseurs, décodage).</li>
 <li><b>Déclenchement</b> : choisissez la voie et le front (↘ pour le <i>début de trame</i> d'un UART : le start est un front descendant). La fenêtre se cale alors sur la trame.</li>
 <li><b>Seuil logique</b> : tension au-dessus de laquelle on lit « 1 ». 1,65 V convient à 3,3 V et 5 V ; <b>0 V</b> pour le RS-232 ±12 V et le Modbus différentiel.</li>
 <li><b>Curseurs</b> : glissez la souris sur le chronogramme pour mesurer une durée (ex. la durée d'un bit → débit = 1/durée).</li>
 <li><b>Décodeur</b> : choisissez le protocole, indiquez les voies (RX, SCL/SDA, CS/SCK/MOSI/MISO…) et les paramètres. Tant que le réglage n'est pas bon, le décodeur affiche des <b>erreurs : c'est normal</b>, c'est un indice. Méthode UART : débit, puis parité / bits de données, puis stops.</li></ol>` }));
-  const body = h('div', cv, info, ctl, dec, guide); const el = this.frame('Analyseur logique', 'lgwin', body, inst);
+  guide.open = false; const gbtn = h('button', { title: 'Aide : comment utiliser l\'analyseur logique', onclick: () => guide.classList.toggle('on') }, '? Aide'); const gx = h('button.gx', { onclick: () => guide.classList.remove('on') }, '✕ Fermer'); guide.prepend(gx);
+  const body = h('div', h('div.lgcvw', cv, guide), h('div.lgbar', info, gbtn), ctl, dec); const el = this.frame('Analyseur logique', 'lgwin', body, inst);
   // curseurs de mesure (glisser sur le chronogramme)
   const cur = { a: null, b: null, drag: false }; const xT = e => { const r = cv.getBoundingClientRect(); return ((e.clientX - r.left) / r.width * W - 44) / (W - 50); };
   cv.addEventListener('pointerdown', e => { cur.a = xT(e); cur.b = cur.a; cur.drag = true; cv.setPointerCapture(e.pointerId); });
@@ -102,7 +103,7 @@ I.logicDecode = function (inst, r) {
   return { spans, html };
 };
 I.drawLogic = function (inst, cv, info, dec, cur) {
-  const p = inst.p, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, X0 = 44, PW = W - X0 - 6, rowH = 38, top = 6;
+  const p = inst.p, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, X0 = 44, PW = W - X0 - 6, rowH = 24, top = 5;
   ctx.fillStyle = '#0b1410'; ctx.fillRect(0, 0, W, H); ctx.font = '11px monospace';
   const o = this.logicRing(inst); const span = p.tdiv * 10;
   ctx.strokeStyle = '#1d3a2a'; ctx.lineWidth = 1; for (let i = 0; i <= 10; i++) { const x = X0 + i * PW / 10; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + 8 * rowH); ctx.stroke(); }
@@ -120,7 +121,7 @@ I.drawLogic = function (inst, cv, info, dec, cur) {
   const t0 = s.vt0 + p.pos, t1 = t0 + span, xt = t => X0 + (t - t0) / span * PW;
   // courbes
   for (let c = 0; c < 8; c++) {
-    const ev = EV[c]; const yh = top + c * rowH + 7, yl = top + (c + 1) * rowH - 9; ctx.strokeStyle = COL[c]; ctx.lineWidth = 1.8; ctx.beginPath();
+    const ev = EV[c]; const yh = top + c * rowH + 5, yl = top + (c + 1) * rowH - 5; ctx.strokeStyle = COL[c]; ctx.lineWidth = 1.8; ctx.beginPath();
     let lv = P.lvAt(ev, t0); let x = X0; ctx.moveTo(x, lv ? yh : yl);
     for (const e of ev) { if (e[0] <= t0 || e[0] >= t1) continue; const xx = xt(e[0]); ctx.lineTo(xx, lv ? yh : yl); lv = e[1]; ctx.lineTo(xx, lv ? yh : yl); }
     ctx.lineTo(X0 + PW, lv ? yh : yl); ctx.stroke();
@@ -128,9 +129,9 @@ I.drawLogic = function (inst, cv, info, dec, cur) {
   // décodage
   const D = this.logicDecode(inst, r); ctx.font = '10px monospace';
   for (const sp of D.spans) { if (sp.t1 < t0 || sp.t0 > t1) continue; const xa = Math.max(X0, xt(sp.t0)), xb = Math.min(X0 + PW, xt(sp.t1)); const y = top + sp.ch * rowH + rowH / 2;
-    if (sp.mark) { ctx.fillStyle = '#fde68a'; ctx.fillText(sp.label, xa - 3, top + sp.ch * rowH + 10); continue; }
-    if (xb - xa < 2) continue; ctx.fillStyle = sp.err ? 'rgba(239,68,68,.55)' : 'rgba(250,250,250,.16)'; ctx.fillRect(xa, y - 9, xb - xa, 18); ctx.strokeStyle = sp.err ? '#f87171' : '#9ca3af'; ctx.lineWidth = 1; ctx.strokeRect(xa, y - 9, xb - xa, 18);
-    if (xb - xa > ctx.measureText(sp.label).width + 4) { ctx.fillStyle = '#f8fafc'; ctx.fillText(sp.label, xa + 3, y + 3); } }
+    if (sp.mark) { ctx.fillStyle = '#fde68a'; ctx.fillText(sp.label, xa - 3, top + sp.ch * rowH + 9); continue; }
+    if (xb - xa < 2) continue; ctx.fillStyle = sp.err ? 'rgba(239,68,68,.55)' : 'rgba(250,250,250,.16)'; ctx.fillRect(xa, y - 7, xb - xa, 14); ctx.strokeStyle = sp.err ? '#f87171' : '#9ca3af'; ctx.lineWidth = 1; ctx.strokeRect(xa, y - 7, xb - xa, 14);
+    if (xb - xa > ctx.measureText(sp.label).width + 4) { ctx.fillStyle = '#f8fafc'; ctx.fillText(sp.label, xa + 3, y + 3.5); } }
   // axe de temps
   ctx.fillStyle = '#94a3b8'; ctx.font = '10px monospace'; for (let i = 0; i <= 10; i += 2) ctx.fillText(i === 0 ? 't = ' + tl(t0) : '+' + tl(i * span / 10), Math.max(2, X0 + i * PW / 10 - (i === 0 ? 0 : 24)), top + 8 * rowH + 14);
   // curseurs
