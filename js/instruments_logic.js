@@ -36,7 +36,14 @@ I.logic = function (inst) {
     h('fieldset', h('legend', 'DÉCLENCHEMENT'), h('label', 'Voie ', chSel('trigCh', true)), sel('edge', ['down', 'up'], v => v === 'up' ? 'Front montant ↗' : 'Front descendant ↘')),
     h('fieldset', h('legend', 'SEUIL LOGIQUE'), h('label', 'Seuil (V) ', nin('thr', 0.1, -30, 30)), h('div.small', '3,3 V/5 V : 1,65 V · RS-232 : 0 V')),
     h('fieldset.lgwide', h('legend', 'DÉCODEUR'), h('label', 'Protocole ', protoSel), protoBox));
-  const body = h('div', cv, info, ctl, dec); const el = this.frame('Analyseur logique', 'lgwin', body, inst);
+  const guide = h('details.lghelp', h('summary', '❓ Guide d\'utilisation de l\'analyseur logique'), h('div', { html: `<ol><li><b>Câblage</b> : une voie D0…D7 par signal à observer, et la broche <b>GND de l'analyseur reliée à la masse du montage</b> (sinon aucun niveau n'est lu).</li>
+<li><b>Base de temps</b> (µs ou ms par division, 10 divisions) : <b>Auto</b> la règle d'après les signaux ; ◀ ▶ décalent la fenêtre ; ⟲ revient au début. Pour voir une trame UART entière, visez environ 10 à 12 bits dans la fenêtre.</li>
+<li><b>RUN / STOP</b> : RUN = défilement continu ; STOP fige la capture pour l'étudier tranquillement (curseurs, décodage).</li>
+<li><b>Déclenchement</b> : choisissez la voie et le front (↘ pour le <i>début de trame</i> d'un UART : le start est un front descendant). La fenêtre se cale alors sur la trame.</li>
+<li><b>Seuil logique</b> : tension au-dessus de laquelle on lit « 1 ». 1,65 V convient à 3,3 V et 5 V ; <b>0 V</b> pour le RS-232 ±12 V et le Modbus différentiel.</li>
+<li><b>Curseurs</b> : glissez la souris sur le chronogramme pour mesurer une durée (ex. la durée d'un bit → débit = 1/durée).</li>
+<li><b>Décodeur</b> : choisissez le protocole, indiquez les voies (RX, SCL/SDA, CS/SCK/MOSI/MISO…) et les paramètres. Tant que le réglage n'est pas bon, le décodeur affiche des <b>erreurs : c'est normal</b>, c'est un indice. Méthode UART : débit, puis parité / bits de données, puis stops.</li></ol>` }));
+  const body = h('div', cv, info, ctl, dec, guide); const el = this.frame('Analyseur logique', 'lgwin', body, inst);
   // curseurs de mesure (glisser sur le chronogramme)
   const cur = { a: null, b: null, drag: false }; const xT = e => { const r = cv.getBoundingClientRect(); return ((e.clientX - r.left) / r.width * W - 44) / (W - 50); };
   cv.addEventListener('pointerdown', e => { cur.a = xT(e); cur.b = cur.a; cur.drag = true; cv.setPointerCapture(e.pointerId); });

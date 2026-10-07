@@ -16,14 +16,14 @@ Simulateur **hors ligne** (HTML/CSS/JS pur, aucune dépendance) : éditeur de sc
 | Thermographie | Bouton « 🌡 Thermographie » : température estimée de chaque composant (puissance dissipée / admissible, inertie thermique), palette de caméra thermique |
 | Pannes | Défauts injectables (ouvert, court-circuit, dérive, électrolytique séché, …), destruction thermique/électrique, pannes en cascade |
 
-## TP (34 TP, avec variantes)
+## TP (35 TP, avec variantes)
 1 · Lois fondamentales : `ohm`, `assoc`, `kirchhoff`, `diviseur`, `puissance`, `led`, `rc`, `signaux`, `filtre`
 2 · Composants : `test`, `zener`, `transistor`, `relais`
 3 · Alimentations : `transfo`, `redress`, `filtrage`, `regul`
 4 · Dépannage : `dep1` (alimentation 5 V, 7 pannes), `dep2` (platine transistor, 6 pannes), `dep3` (AOP, 4 pannes)
 5 · Amplification : `inverseur`, `cre` (interrupteur crépusculaire)
 6 · Circuits intégrés & numérique : `portes` (6 portes), `ne555` (4 fréquences), `opto` (3 optocoupleurs), `mosfet` (2 cas), `bascule` (diviseur par 2), `compteur` (555 → compteur 4 bits → LED), `modulo` (modulo 10 / 6) + `dep_log` (dépannage logique, 5 pannes, catégorie Dépannage)
-7 · Communication série : `uart` (5 liaisons dont RS-232), `modbus` (4 échanges : lecture, écriture, CRC faux, exception), `i2c` (4 cas dont NACK et pull-up manquantes), `spi` (4 modes) — les paramètres de l'émetteur sont masqués, l'élève les retrouve à l'analyseur logique
+7 · Communication série : `la_intro` (prise en main de l'analyseur logique), `uart` (5 liaisons dont RS-232), `modbus` (4 échanges : lecture, écriture, CRC faux, exception), `i2c` (4 cas dont NACK et pull-up manquantes), `spi` (4 modes) — les paramètres de l'émetteur sont masqués, l'élève les retrouve à l'analyseur logique
 
 Chaque TP : sujet, objectifs, questions (numériques, QCM, choix de composant, texte), vérification automatique du câblage et du fonctionnement, correction.
 

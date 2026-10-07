@@ -317,4 +317,37 @@ regScenario({
     noBurn],
   correction: '<p>Un compteur 4 bits monte jusqu\'à 15. Pour un <b>modulo N</b> on détecte l\'état N (qui n\'apparaît donc que très brièvement) et on remet à zéro de façon asynchrone. N = 10 = 1010 : on décode <b>Q3·Q1</b> ; aucun état inférieur (0 à 9) n\'a ces deux bits à 1 en même temps. N = 6 = 0110 : on décode <b>Q2·Q1</b>. Le compteur parcourt 0 … N − 1 ; l\'état N ne dure que le temps de propagation de la porte (quelques ns) : on ne le voit pas sur les LED. Application : compteur décimal (BCD), diviseur par N, horloge à 6 états (dé électronique).</p>',
 });
+
+/* ============================================================ prise en main de l'analyseur logique */
+const LAI = [{ f: 986, R2: 6800, C: 100e-9, td: 2e-3 }, { f: 2060, R2: 7200, C: 47e-9, td: 1e-3 }];
+const lv = c => LAI[c.tp.variant % 2];
+const fl = c => freqOf(c, 'U1', 'OUT', 2.5, lv(c).f).f;
+regScenario({
+  id: 'la_intro', cat: '7 · Communication série', diff: 1, title: 'Prise en main de l\'analyseur logique (chronogrammes d\'un compteur)', level: 'Bac Pro CIEL (première)', duration: '45 min', variants: 2, variantLabel: '↻ Autre horloge', settle: 0.05,
+  refs: 'Instruments de mesure ; signaux logiques ; analyseur logique : voies, base de temps, déclenchement, seuil, curseurs',
+  desc: 'Avant d\'analyser des liaisons série, apprenez à vous servir de l\'<b>analyseur logique</b> sur un signal que vous connaissez : un compteur 4 bits piloté par un NE555. Vous allez le câbler, régler base de temps, déclenchement et seuil, puis mesurer des périodes avec les curseurs.',
+  objectives: ['Câbler plusieurs voies et la masse de l\'analyseur', 'Régler la base de temps pour voir plusieurs périodes', 'Utiliser le déclenchement (voie, front) pour stabiliser l\'affichage', 'Mesurer une période avec les curseurs et en déduire une fréquence', 'Lire un compteur sur un chronogramme'],
+  steps: ['Câblez <b>D0 → Q0</b>, <b>D1 → Q1</b>, <b>D2 → Q2</b>, <b>D3 → Q3</b> du compteur U2, et <b>GND → masse</b>. Double-clic sur LA pour ouvrir la fenêtre (le <b>❓ Guide d\'utilisation</b> en bas de la fenêtre résume chaque réglage).', 'Appuyez sur <b>Auto</b> : la base de temps se règle toute seule. Réglez-la ensuite à la main pour voir <b>au moins une période complète de Q3</b> (la plus lente).', 'Déclenchement : choisissez la <b>voie D0, front montant</b> : l\'image devient stable. Appuyez sur <b>STOP</b> pour figer la capture.', 'Avec les <b>curseurs</b> (glisser sur le chronogramme), mesurez la période de Q0 et celle de Q3. Comparez : Q3 est ___ fois plus lente.', 'Le seuil logique doit convenir à un signal 0 / 5 V : vérifiez qu\'il vaut environ 1,65 V. Répondez aux questions.'],
+  questions: [
+    { q: 'Période de l\'horloge CK du NE555 (en µs)', answer: c => 1e6 / fl(c), tol: 0.08, unit: 'µs' },
+    { q: 'Période de Q0 (en µs)', answer: c => 2e6 / fl(c), tol: 0.08, unit: 'µs' },
+    { q: 'Période de Q3 (en ms)', answer: c => 16e3 / fl(c), tol: 0.08, unit: 'ms' },
+    { q: 'Q3 est plus lente que Q0 d\'un facteur…', answer: 8, abs: 0.1 },
+    { q: 'Pourquoi faut-il relier la broche GND de l\'analyseur à la masse du montage ?', type: 'choice', options: ['Pour alimenter l\'analyseur', 'Pour que les tensions soient mesurées par rapport à la même référence (sans masse commune, aucun niveau n\'est lu)', 'Pour augmenter la vitesse', 'Ce n\'est pas nécessaire'], correct: 1 },
+    { q: 'À quoi sert le déclenchement ?', type: 'choice', options: ['À amplifier le signal', 'À démarrer l\'affichage toujours au même événement (un front) pour obtenir une image stable', 'À choisir la couleur des voies', 'À éteindre l\'instrument'], correct: 1 },
+  ],
+  build(c, o) {
+    const t = LAI[((o && o.variant) || 0) % 2]; const L = mk(c); clk555(L, t.R2, t.C);
+    L.p('cnt4', 'U2', 640, 220, { fam: 'HC' }); L.w('U1', 'OUT', 'U2', 'CK'); L.w('AL1', '+', 'U2', 'VCC'); L.w('GND1', 'G', 'U2', 'GND'); L.w('GND1', 'G', 'U2', 'MR');
+    L.p('logic', 'LA', 780, 420, { tdiv: 1e-4, thr: 1.65 });
+  },
+  solve(c, ctx, v) { const L = mk(c); for (let k = 0; k < 4; k++) L.w('LA', 'D' + k, 'U2', 'Q' + k); L.w('LA', 'GND', 'GND1', 'G'); Object.assign(c.byRef('LA').p, { tdiv: LAI[v % 2].td, trigCh: 0, edge: 'up', thr: 1.65 }); },
+  checks: [
+    { label: 'Analyseur : D0…D3 câblées sur Q0…Q3, GND à la masse', run: c => [0, 1, 2, 3].every(k => c.net('LA', 'D' + k) === c.net('U2', 'Q' + k)) && c.net('LA', 'GND') === 0 },
+    { label: 'Base de temps adaptée : au moins une période de Q3 visible (sans être écrasée)', run: c => { const f = lv(c).f, T3 = 16 / f, w = c.part('LA').p.tdiv * 10; return w >= T3 * 0.95 && w <= T3 * 8; } },
+    { label: 'Déclenchement activé sur une voie (front choisi)', run: c => c.part('LA').p.trigCh >= 0 },
+    { label: 'Seuil logique adapté à un signal 0 / 5 V (1 à 3,5 V)', run: c => { const t = c.part('LA').p.thr; return t >= 1 && t <= 3.5; } },
+    noBurn],
+  correction: '<p>L\'analyseur logique transforme chaque entrée en 0 ou 1 en comparant la tension au <b>seuil</b>. Il faut une <b>masse commune</b> avec le montage. Le <b>déclenchement</b> cale l\'affichage sur un front (ici montant de Q0) : l\'image est stable. Les curseurs donnent les durées : période de Q0 = 2 × période de CK, de Q3 = 16 × période de CK, soit <b>8 fois</b> plus lente que Q0. Pour un UART, on déclencherait sur le front descendant du start.</p>',
+});
 })(typeof window !== 'undefined' ? window : globalThis);

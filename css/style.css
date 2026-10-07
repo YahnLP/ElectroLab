@@ -116,3 +116,4 @@ details.cours summary{color:#1e40af}.coursbody{font-size:13.5px;line-height:1.45
 .scwin button,.lgwin button{background:#3b4a5a;color:#f1f5f9;border:1px solid #5b6b7b;border-radius:5px;padding:3px 8px;cursor:pointer}.scwin button:hover,.lgwin button:hover{background:#4b5d70}
 
 .lghint{margin:4px 0;padding:4px 8px;border-left:3px solid #facc15;background:#2a2a14;color:#fde68a;font-size:12px}
+.lghelp{margin:6px 0;padding:4px 8px;border:1px solid #2f4a3a;border-radius:4px;font-size:12px}.lghelp summary{cursor:pointer;color:#6ee7a0}.lghelp ol{margin:6px 0 2px 16px;padding:0}.lghelp li{margin:3px 0}
