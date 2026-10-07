@@ -14,6 +14,7 @@ NS.COVERAGE = {
     ['Signaux', 'Régime transitoire RC, constante de temps', 'ok', 'rc'],
     ['Signaux', 'Filtre passif, fréquence de coupure', 'ok', 'filtre'],
     ['Mesure', 'Multimètre, oscilloscope, alimentation de laboratoire, GBF', 'ok', 'tous'],
+    ['Mesure', 'Lecture d\'un signal à l\'oscilloscope : réglages, T, f, Umax, Upp, Umoy, Ueff, rapport cyclique, déphasage, couplage AC/DC', 'ok', 'osc_lect, osc_carre, osc_phi, osc_ac'],
     ['Composants', 'Diode, LED, résistance de limitation', 'ok', 'led'],
     ['Composants', 'Test de composants hors tension (ohmmètre, diode, continuité)', 'ok', 'test'],
     ['Composants', 'Diode Zener, stabilisation', 'ok', 'zener'],
