@@ -30,7 +30,7 @@ NS.COVERAGE = {
     ['Sécurité', 'Risque électrique, fusibles, protection (consignes dans les TP secteur)', 'part', 'transfo, dep1'],
     ['Capteurs / Chaînes', 'Conditionnement de capteurs (CTN, LDR)', 'part', 'cre'],
     ['Numérique', 'Logique combinatoire : portes, tables de vérité, familles CMOS / TTL', 'ok', 'portes'],
-    ['Numérique', 'Logique séquentielle (bascule, compteur) : composants disponibles, TP à venir', 'part', 'bibliothèque'],
+    ['Numérique', 'Logique séquentielle : bascule D, diviseur de fréquence, compteur binaire, compteur modulo N', 'ok', 'bascule, compteur, modulo'],
     ['Numérique', 'Microcontrôleur', 'no', 'à venir'],
     ['Composants', 'Temporisateur NE555 (astable), calcul de fréquence', 'ok', 'ne555'],
     ['Composants', 'Optocoupleur, isolation galvanique', 'ok', 'opto'],

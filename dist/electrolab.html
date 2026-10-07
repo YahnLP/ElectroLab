@@ -2836,6 +2836,9 @@ NS.App = App;
   C.modbus = [{ t: 'Modbus RTU sur RS-485', h: '<p><b>RS-485</b> : liaison <b>différentielle</b> (fils A et B), niveau = A − B (&gt; +200 mV ou &lt; −200 mV) : immunité aux parasites, jusqu\'à 1200 m et 32 nœuds, half-duplex. <b>Modbus RTU</b> : maître/esclaves ; trame = <b>adresse</b> (1 à 247) · <b>fonction</b> · données · <b>CRC16</b> (2 octets, poids faible d\'abord). Les trames sont séparées par un silence ≥ 3,5 caractères.</p><p>Fonction 03 : lire des registres (adresse de début + nombre) ; 06 : écrire un registre ; réponse d\'<b>exception</b> : fonction + 0x80 puis code (01 fonction illégale, 02 adresse illégale, 03 valeur illégale). Un CRC faux = trame altérée, ignorée par le récepteur.</p>' }];
   C.i2c = [{ t: 'Le bus I²C', h: '<p>Deux fils : <b>SCL</b> (horloge, fournie par le maître) et <b>SDA</b> (données bidirectionnelles), tous deux à <b>drain ouvert</b> avec <b>résistances de rappel</b> (typ. 4,7 kΩ au +3,3 V). <b>START</b> : SDA↓ pendant SCL = 1 ; <b>STOP</b> : SDA↑ pendant SCL = 1 ; sinon SDA change quand SCL = 0. Après START : 7 bits d\'<b>adresse</b> (MSB d\'abord) + bit <b>R/W</b>, puis un bit <b>ACK</b> (SDA tiré à 0 par l\'esclave) ; chaque octet est acquitté. Absence de réponse = <b>NACK</b>.</p><p>Vitesses : 100 kHz (standard), 400 kHz (rapide). Exemples : 0x48 capteur de température, 0x68 RTC, 0x3C afficheur OLED.</p>' }];
   C.spi = [{ t: 'Le bus SPI', h: '<p>Quatre fils : <b>SCK</b> (horloge), <b>MOSI</b> (maître → esclave), <b>MISO</b> (esclave → maître), <b>CS</b> (sélection, actif à 0). Transmission <b>synchrone, full-duplex</b>, MSB en premier. Quatre modes selon <b>CPOL</b> (niveau de repos de SCK) et <b>CPHA</b> (échantillonnage au 1<sup>er</sup> ou 2<sup>e</sup> front) : mode 0 (0,0), 1 (0,1), 2 (1,0), 3 (1,1). Maître et esclave doivent utiliser le même mode, sinon les bits sont décalés. Plus rapide que l\'I²C (MHz) mais un CS par esclave.</p>' }];
+  C.bascule = [{ t: 'La bascule D', h: '<p>Mémoire d\'un bit : <b>Q recopie D au front montant de CK</b>, puis garde cette valeur. Entrées asynchrones <b>S̅</b> (set, Q = 1) et <b>R̅</b> (reset, Q = 0) <b>actives à l\'état bas</b> et prioritaires : à relier au +5 V quand on ne s\'en sert pas. Câblée avec <b>D = Q̅</b>, elle bascule à chaque front d\'horloge : <b>diviseur de fréquence par 2</b>, de rapport cyclique 50 %.</p>' }];
+  C.compteur = [{ t: 'Compteurs binaires', h: '<p>Un compteur 4 bits enchaîne quatre bascules : l\'état (Q3 Q2 Q1 Q0) augmente de 1 à chaque front d\'horloge, de 0 à 15 puis retour à 0 (<b>modulo 16</b>). Chaque sortie divise par 2 la précédente : f(Q<sub>n</sub>) = f<sub>CK</sub>/2<sup>n+1</sup>. <b>MR</b> force 0000 tant qu\'il vaut 1 (asynchrone). Poids : Q0 = 1, Q1 = 2, Q2 = 4, Q3 = 8.</p>' }];
+  C.modulo = [{ t: 'Compteur modulo N', h: '<p>Pour compter de 0 à N − 1 : on <b>décode l\'état N</b> (porte ET sur ses bits à 1) et on envoie ce signal sur la remise à zéro. N = 10 → Q3·Q1 ; N = 6 → Q2·Q1. L\'état N n\'existe que quelques nanosecondes. Même principe pour les diviseurs par N, les compteurs BCD et les séquenceurs.</p>' }];
   NS.coursFor = id => C[id] || [];
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -3885,6 +3888,117 @@ regScenario({
   ],
   correction: '<p>On suit le signal : entrées de U1 (niveaux 0/1 selon SW1, SW2) → sortie de U1 (NAND : 0 seulement si A = B = 1) → sortie de U2 (NOT) → LED. <b>Sortie bloquée</b> : le niveau ne change plus quand les entrées changent. <b>VCC absent</b> : sortie à 0 V (ou indéterminée) alors que les entrées sont correctes — on mesure VCC <i>sur la broche du circuit</i>, pas seulement sur l\'alimentation. <b>R1 coupée</b> : sortie de U2 correcte (5 V) mais pas de courant dans la LED.</p>',
 });
+
+/* ============================================================ F6-F8 — logique séquentielle : 555 → bascule / compteur → LED */
+function clk555(L, R2, C, R1) {
+  L.p('psu', 'AL1', 100, 200, { V: 5, Ilim: 0.3 }); L.p('ground', 'GND1', 100, 360); L.p('timer555', 'U1', 400, 220, { model: 'NE555' });
+  R(L, 'R1', 300, 100, R1 || 1000, 90); R(L, 'R2', 300, 190, R2, 90); L.p('capacitor', 'C1', 260, 300, { C, esr: 0.001, tol: 2, Vmax: 25 }, 90);
+  L.w('AL1', '+', 'U1', 'VCC'); L.w('AL1', '+', 'U1', 'RESET'); L.w('AL1', '+', 'R1', 'A'); L.w('R1', 'B', 'U1', 'DIS'); L.w('U1', 'DIS', 'R2', 'A'); L.w('R2', 'B', 'U1', 'THR'); L.w('U1', 'THR', 'U1', 'TRIG'); L.w('U1', 'THR', 'C1', 'A');
+  L.w('GND1', 'G', 'U1', 'GND'); L.w('GND1', 'G', 'C1', 'B'); L.w('GND1', 'G', 'AL1', '−');
+}
+const GB = [986, 2060, 520];
+const fclk = (c, id) => freqOf(c, 'U1', 'OUT', 2.5, id === 'b' ? GB[c.tp.variant % 3] : SEQ[c.tp.variant % 2].f).f;
+/* état du compteur (0-15) lu sur U2 */
+const cnt = c => [0, 1, 2, 3].reduce((a, k) => a + (c.v('U2', 'Q' + k) > 2.5 ? 1 << k : 0), 0);
+/* états observés juste après chaque front montant de l'horloge (n fronts) */
+function states(c, f, n) {
+  const dt = 1 / (f * 40), out = []; let prev = c.v('U1', 'OUT') > 2.5, k = 0, wait = -1;
+  for (let i = 0; i < n * 45 && out.length < n; i++) { c.sim.advance(dt); const h = c.v('U1', 'OUT') > 2.5; if (h && !prev) wait = 4; prev = h; if (wait > 0 && --wait === 0) out.push(cnt(c)); }
+  return out;
+}
+var SEQ = [{ f: 1000, R2: 6800, C: 100e-9, R1: 1000, lab: '1 kHz' }, { f: 2.2, R2: 10000, C: 22e-6, R1: 10000, lab: '2 Hz (LED visibles)' }];
+const sq = c => SEQ[c.tp.variant % 2];
+const tied = (c, ref, pin, to) => c.net(ref, pin) === c.net(...to);
+
+regScenario({
+  id: 'bascule', cat: CAT, diff: 3, title: 'Bascule D : diviseur de fréquence par 2', level: 'Bac Pro CIEL (première / terminale)', duration: '1 h 15', variants: 3, variantLabel: '↻ Autre horloge', settle: 0.02,
+  refs: 'Logique séquentielle ; bascule D ; front d\'horloge ; entrées asynchrones SET / RESET ; division de fréquence',
+  desc: 'Un NE555 fournit une horloge. Une <b>bascule D</b> (74HC74) est à moitié câblée : à vous de l\'alimenter, de neutraliser ses entrées asynchrones, de la boucler en <b>diviseur par 2</b> (Q̅ → D) et de vérifier à l\'oscilloscope.',
+  objectives: ['Alimenter la bascule et relier ses entrées actives à l\'état bas (S̅, R̅) au niveau haut', 'Comprendre que Q recopie D <b>au front montant</b> de CK', 'Câbler Q̅ sur D pour obtenir f(Q) = f(CK)/2', 'Constater le rapport cyclique de 50 % en sortie'],
+  steps: ['Repérez la bascule U2 : CK est déjà reliée à la sortie du 555. Alimentez-la (VCC, GND).', 'Les entrées <b>S̅ (set)</b> et <b>R̅ (reset)</b> sont <b>actives à l\'état bas</b> : reliez-les au +5 V pour qu\'elles ne forcent pas la sortie.', 'Reliez <b>Q̅ à D</b> : à chaque front montant, Q prend l\'inverse de son état précédent.', 'Oscilloscope : CH1 sur l\'horloge (sortie 555), CH2 sur Q. Mesurez les deux fréquences.'],
+  questions: [
+    { q: 'Fréquence de l\'horloge CK (en Hz)', answer: c => fclk(c, 'b'), tol: 0.08, unit: 'Hz' },
+    { q: 'Fréquence de la sortie Q (en Hz)', answer: c => freqOf(c, 'U2', 'Q', 2.5, fclk(c, 'b') / 2).f, tol: 0.08, unit: 'Hz' },
+    { q: 'Rapport cyclique de Q (en %)', answer: c => freqOf(c, 'U2', 'Q', 2.5, fclk(c, 'b') / 2).duty * 100, tol: 0.08, unit: '%' },
+    { q: 'Une bascule D recopie D sur sa sortie Q…', type: 'choice', options: ['en permanence', 'au front montant de CK seulement', 'au niveau haut de CK', 'quand S̅ = 1'], correct: 1 },
+    { q: 'Pourquoi relier Q̅ à D divise-t-il la fréquence par 2 ?', type: 'choice', options: ['Q change d\'état à chaque front montant de CK : une période de Q = deux périodes de CK', 'Parce que le 555 ralentit', 'Parce que Q̅ est plus lent', 'Parce que D est une entrée lente'], correct: 0 },
+  ],
+  build(c, o) {
+    const v = (o && o.variant) || 0; const t = [{ R2: 6800, C: 100e-9 }, { R2: 7200, C: 47e-9 }, { R2: 6000, C: 220e-9 }][v % 3]; const L = mk(c);
+    clk555(L, t.R2, t.C); L.p('dff', 'U2', 640, 220, { fam: 'HC' }); L.w('U1', 'OUT', 'U2', 'CK');
+    L.p('scope', 'OSC1', 780, 460, { tdiv: 1e-3, v1: 2, v2: 2, on1: true, on2: true, trig: 2.5, src: 1, edge: 'up' });
+    c.tpfg = [986, 2060, 520][v % 3];
+  },
+  solve(c) { const L = mk(c); L.w('AL1', '+', 'U2', 'VCC'); L.w('GND1', 'G', 'U2', 'GND'); L.w('AL1', '+', 'U2', 'S̅'); L.w('AL1', '+', 'U2', 'R̅'); L.w('U2', 'Q̅', 'U2', 'D'); L.w('OSC1', 'CH1', 'U1', 'OUT'); L.w('OSC1', 'CH2', 'U2', 'Q'); L.w('OSC1', 'GND', 'GND1', 'G'); },
+  checks: [
+    { label: 'La bascule est alimentée (VCC = 5 V, GND à la masse)', run: c => near(c.vd('U2', 'VCC', 'U2', 'GND'), 5, 0.06) && Math.abs(c.v('U2', 'GND')) < 0.05 },
+    { label: 'S̅ et R̅ sont reliées au +5 V (inactives)', run: c => c.v('U2', 'S̅') > 4.5 && c.v('U2', 'R̅') > 4.5 },
+    { label: 'Q̅ est reliée à D (montage diviseur)', run: c => c.net('U2', 'Q̅') === c.net('U2', 'D') },
+    { label: 'f(Q) = f(CK) / 2 (± 8 %)', run: c => { const f = freqOf(c, 'U1', 'OUT', 2.5, 1000).f; const q = freqOf(c, 'U2', 'Q', 2.5, f / 2).f; return f > 0 && near(q, f / 2, 0.08); } },
+    { label: 'Oscilloscope : CH1 sur l\'horloge, CH2 sur Q', run: c => c.scopeWired(null, ['U1', 'OUT'], ['U2', 'Q']) },
+    noBurn],
+  correction: '<p>La bascule D copie D sur Q <b>au front montant</b> de CK. Avec D = Q̅, Q bascule à chaque front : une période de Q contient deux périodes de CK, donc <b>f(Q) = f(CK)/2</b>, avec un <b>rapport cyclique de 50 %</b> même si l\'horloge est asymétrique (le 555 donne ≈ 52-55 %). Les entrées asynchrones S̅ et R̅ sont <b>actives à 0</b> et prioritaires sur l\'horloge : laissées libres ou à 0, elles bloquent la sortie.</p>',
+});
+// la fréquence de départ est portée par le TP (valeur indicative pour le pas de mesure)
+regScenario({
+  id: 'compteur', cat: CAT, diff: 3, title: 'Compteur binaire 4 bits piloté par un NE555 (affichage sur LED)', level: 'Bac Pro CIEL (terminale)', duration: '1 h 30', variants: 2, variantLabel: '↻ Autre horloge', settle: 0.02,
+  refs: 'Logique séquentielle ; compteur binaire ; modulo ; remise à zéro asynchrone ; division de fréquence ; chronogrammes',
+  desc: 'Le NE555 cadence un <b>compteur 4 bits</b> dont les sorties Q0 à Q3 (poids 1, 2, 4, 8) commandent quatre LED. Finissez le câblage : alimentation, remise à zéro, LED. Variante 2 Hz : on <b>voit</b> compter en binaire ; variante 1 kHz : on mesure.',
+  objectives: ['Câbler un compteur : alimentation, entrée d\'horloge, remise à zéro MR (active à 1)', 'Lire un nombre binaire sur 4 LED (Q3 Q2 Q1 Q0)', 'Établir que f(Q<sub>n</sub>) = f(CK)/2<sup>n+1</sup>', 'Comprendre le modulo 16 : 0 → 15 puis retour à 0'],
+  steps: ['Alimentez U2 (VCC, GND) puis reliez <b>MR (master reset) à la masse</b> : actif à l\'état haut, il bloquerait le comptage s\'il restait au +5 V.', 'Reliez les sorties <b>Q0…Q3</b> aux résistances R3…R6 des LED D1…D4 (D1 = poids 1).', 'Observez le comptage (variante 2 Hz) ou mesurez f(Q0) à f(Q3) à l\'oscilloscope (variante 1 kHz).', 'Que se passe-t-il quand MR est mis au +5 V ?', 'Répondez aux questions.'],
+  questions: [
+    { q: 'Fréquence de l\'horloge CK (en Hz)', answer: c => fclk(c), tol: 0.08, unit: 'Hz' },
+    { q: 'Fréquence de Q0 (en Hz)', answer: c => fclk(c) / 2, tol: 0.08, unit: 'Hz', hint: 'f/2' },
+    { q: 'Fréquence de Q3 (en Hz)', answer: c => fclk(c) / 16, tol: 0.08, unit: 'Hz', hint: 'Chaque étage divise par 2 : Q3 = f/16.' },
+    { q: 'Les LED affichent D4 D3 D2 D1 = 1 0 1 1. Quelle valeur décimale ?', answer: 11, abs: 0.1 },
+    { q: 'Combien d\'états distincts a ce compteur (modulo) ?', answer: 16, abs: 0.1 },
+    { q: 'Après l\'état 1111 (15), le compteur passe à…', type: 'choice', options: ['0000 (retour à zéro)', '10000', '1111 (il s\'arrête)', '1110'], correct: 0 },
+    { q: 'À quoi sert l\'entrée MR ?', type: 'choice', options: ['Remettre le compteur à 0 de façon asynchrone (MR = 1)', 'Choisir le sens de comptage', 'Augmenter la vitesse', 'Alimenter les LED'], correct: 0 },
+  ],
+  build(c, o) {
+    const t = SEQ[((o && o.variant) || 0) % 2]; const L = mk(c);
+    clk555(L, t.R2, t.C, t.R1); L.p('cnt4', 'U2', 640, 220, { fam: 'HC' }); L.w('U1', 'OUT', 'U2', 'CK');
+    for (let k = 0; k < 4; k++) { R(L, 'R' + (3 + k), 820, 120 + 60 * k, 330, 0); L.p('led', 'D' + (1 + k), 920, 120 + 60 * k, { model: ['LED rouge', 'LED jaune', 'LED verte', 'LED verte'][k] }); L.w('R' + (3 + k), 'B', 'D' + (1 + k), 'A'); L.w('D' + (1 + k), 'K', 'GND1', 'G'); }
+    L.p('scope', 'OSC1', 780, 520, { tdiv: t.f > 100 ? 2e-3 : 1, v1: 2, v2: 2, on1: true, on2: true, trig: 2.5, src: 1, edge: 'up' });
+    c.tpfg = t.f;
+  },
+  solve(c) { const L = mk(c); L.w('AL1', '+', 'U2', 'VCC'); L.w('GND1', 'G', 'U2', 'GND'); L.w('GND1', 'G', 'U2', 'MR'); for (let k = 0; k < 4; k++) L.w('U2', 'Q' + k, 'R' + (3 + k), 'A'); },
+  checks: [
+    { label: 'Le compteur est alimenté (VCC = 5 V, GND à la masse)', run: c => near(c.vd('U2', 'VCC', 'U2', 'GND'), 5, 0.06) && Math.abs(c.v('U2', 'GND')) < 0.05 },
+    { label: 'MR est reliée à la masse (comptage autorisé)', run: c => c.v('U2', 'MR') < 0.5 },
+    { label: 'Q0…Q3 sont reliées aux LED D1…D4 (poids croissants)', run: c => [0, 1, 2, 3].every(k => c.net('U2', 'Q' + k) === c.net('R' + (3 + k), 'A')) },
+    { label: 'Le compteur compte en binaire : +1 à chaque front d\'horloge, 0 à 15 puis retour à 0', run: c => { const f = fclk(c) || SEQ[c.tp.variant % 2].f; const s = states(c, f, 20); if (s.length < 18) return false; let ok = true; for (let i = 1; i < s.length; i++) if (((s[i] - s[i - 1] + 16) % 16) !== 1) ok = false; return ok && new Set(s).size === 16; } },
+    noBurn],
+  correction: '<p>Le compteur incrémente son état (Q3 Q2 Q1 Q0 en binaire) à <b>chaque front montant</b> de CK, de 0 à 15 puis revient à 0 : <b>modulo 16</b>. Chaque sortie divise par deux la fréquence de la précédente : f(Q0) = f/2, f(Q1) = f/4, f(Q2) = f/8, <b>f(Q3) = f/16</b>. <b>MR</b> (remise à zéro asynchrone, active à 1) doit être au niveau bas pour compter ; à 1 il force 0000. Poids des LED : D1 = 1, D2 = 2, D3 = 4, D4 = 8 ; 1011 = 8 + 2 + 1 = 11.</p>',
+});
+regScenario({
+  id: 'modulo', cat: CAT, diff: 4, title: 'Compteur modulo N : remise à zéro par une porte ET (modulo 10 et modulo 6)', level: 'Bac Pro CIEL (terminale)', duration: '1 h 30', variants: 2, variantLabel: '↻ Autre modulo', settle: 0.02,
+  refs: 'Logique séquentielle et combinatoire associées ; compteur modulo N ; décodage d\'un état ; remise à zéro asynchrone',
+  desc: 'Un compteur 4 bits compte naturellement jusqu\'à 15. Pour le faire compter de 0 à N − 1, on <b>décode l\'état N</b> avec une porte ET dont la sortie remet le compteur à zéro (MR). Câblez la porte U3 pour obtenir le modulo demandé.',
+  objectives: ['Écrire N en binaire et repérer les bits à 1', 'Décoder l\'état N avec une porte ET sur ces bits', 'Relier la sortie de la porte à MR (remise à zéro asynchrone)', 'Vérifier la séquence 0 … N − 1 sur les LED'],
+  steps: ['Variante 1 : modulo <b>10</b> (compter 0 à 9) ; variante 2 : modulo <b>6</b> (0 à 5). Écrivez N en binaire.', 'Repérez les <b>deux bits à 1</b> de N : 10 = 1010 (Q3 et Q1) ; 6 = 0110 (Q2 et Q1).', 'Reliez ces deux sorties aux entrées A et B de la porte ET U3, et la sortie Y de U3 à <b>MR</b>.', 'Vérifiez sur les LED (ou à l\'oscilloscope) que le comptage s\'arrête à N − 1 puis repart de 0.'],
+  questions: [
+    { q: 'Valeur de N pour cette variante', answer: c => c.tp.variant % 2 ? 6 : 10, abs: 0.1 },
+    { q: 'Dernier état affiché avant la remise à zéro (en décimal)', answer: c => c.tp.variant % 2 ? 5 : 9, abs: 0.1 },
+    { q: 'Fréquence de la sortie de la porte ET (état N décodé) par rapport à f(CK)', type: 'choice', options: ['f(CK) / N (une impulsion très brève par cycle)', 'f(CK)', 'f(CK) / 2', '0 Hz'], correct: 0 },
+    { q: 'Fréquence de l\'état « zéro » : cycle complet toutes les… (en nombre de périodes d\'horloge)', answer: c => c.tp.variant % 2 ? 6 : 10, abs: 0.1 },
+    { q: 'Pourquoi décode-t-on seulement deux bits (et non les quatre) ?', type: 'choice', options: ['Parce qu\'aucun état plus petit que N ne contient ces deux bits à 1 simultanément', 'Parce qu\'une porte ET n\'a que deux entrées', 'Parce que Q0 est inutile', 'Par économie de composants uniquement'], correct: 0 },
+  ],
+  build(c, o) {
+    const t = SEQ[0]; const L = mk(c); clk555(L, t.R2, t.C, t.R1); c.tpfg = 1000;
+    L.p('cnt4', 'U2', 640, 220, { fam: 'HC' }); L.w('U1', 'OUT', 'U2', 'CK'); L.w('AL1', '+', 'U2', 'VCC'); L.w('GND1', 'G', 'U2', 'GND');
+    L.p('gate', 'U3', 640, 440, { fn: 'AND', fam: 'HC' }); L.w('AL1', '+', 'U3', 'VCC'); L.w('GND1', 'G', 'U3', 'GND');
+    for (let k = 0; k < 4; k++) { R(L, 'R' + (3 + k), 820, 120 + 60 * k, 330, 0); L.p('led', 'D' + (1 + k), 920, 120 + 60 * k, { model: ['LED rouge', 'LED jaune', 'LED verte', 'LED verte'][k] }); L.w('U2', 'Q' + k, 'R' + (3 + k), 'A'); L.w('R' + (3 + k), 'B', 'D' + (1 + k), 'A'); L.w('D' + (1 + k), 'K', 'GND1', 'G'); }
+    L.w('GND1', 'G', 'U2', 'MR');
+  },
+  solve(c, ctx, v) { const L = mk(c); NS.cutWire(c, 'GND1', 'G', 'U2', 'MR'); const [a, b] = v % 2 ? ['Q1', 'Q2'] : ['Q1', 'Q3']; L.w('U2', a, 'U3', 'A'); L.w('U2', b, 'U3', 'B'); L.w('U3', 'Y', 'U2', 'MR'); },
+  checks: [
+    { label: 'MR n\'est plus reliée à la masse : elle est pilotée par la porte U3', run: c => c.net('U3', 'Y') === c.net('U2', 'MR') },
+    { label: 'La porte ET décode l\'état N (entrées sur les bonnes sorties Q)', run: c => { const want = c.tp.variant % 2 ? ['Q1', 'Q2'] : ['Q1', 'Q3']; const ins = [c.net('U3', 'A'), c.net('U3', 'B')]; return want.every(q => ins.includes(c.net('U2', q))); } },
+    { label: 'Le compteur compte de 0 à N − 1 puis repart de 0', run: c => { const N = c.tp.variant % 2 ? 6 : 10; const s = states(c, 1000, 3 * N + 2); if (s.length < 2 * N) return false; const max = Math.max(...s); if (max !== N - 1) return false; for (let i = 1; i < s.length; i++) if (((s[i] - s[i - 1] + N) % N) !== 1) return false; return new Set(s).size === N; } },
+    noBurn],
+  correction: '<p>Un compteur 4 bits monte jusqu\'à 15. Pour un <b>modulo N</b> on détecte l\'état N (qui n\'apparaît donc que très brièvement) et on remet à zéro de façon asynchrone. N = 10 = 1010 : on décode <b>Q3·Q1</b> ; aucun état inférieur (0 à 9) n\'a ces deux bits à 1 en même temps. N = 6 = 0110 : on décode <b>Q2·Q1</b>. Le compteur parcourt 0 … N − 1 ; l\'état N ne dure que le temps de propagation de la porte (quelques ns) : on ne le voit pas sur les LED. Application : compteur décimal (BCD), diviseur par N, horloge à 6 états (dé électronique).</p>',
+});
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -4119,7 +4233,7 @@ NS.COVERAGE = {
     ['Sécurité', 'Risque électrique, fusibles, protection (consignes dans les TP secteur)', 'part', 'transfo, dep1'],
     ['Capteurs / Chaînes', 'Conditionnement de capteurs (CTN, LDR)', 'part', 'cre'],
     ['Numérique', 'Logique combinatoire : portes, tables de vérité, familles CMOS / TTL', 'ok', 'portes'],
-    ['Numérique', 'Logique séquentielle (bascule, compteur) : composants disponibles, TP à venir', 'part', 'bibliothèque'],
+    ['Numérique', 'Logique séquentielle : bascule D, diviseur de fréquence, compteur binaire, compteur modulo N', 'ok', 'bascule, compteur, modulo'],
     ['Numérique', 'Microcontrôleur', 'no', 'à venir'],
     ['Composants', 'Temporisateur NE555 (astable), calcul de fréquence', 'ok', 'ne555'],
     ['Composants', 'Optocoupleur, isolation galvanique', 'ok', 'opto'],
