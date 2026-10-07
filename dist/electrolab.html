@@ -117,6 +117,11 @@ table.cov{border-collapse:collapse;width:100%;font-size:12px}table.cov td,table.
 .seghandle{fill:#f59e0b;stroke:#fff;stroke-width:1;pointer-events:none}.wirehit{cursor:move}
 details.cours{background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;border-radius:8px;padding:6px 10px;margin:8px 0}
 details.cours summary{color:#1e40af}.coursbody{font-size:13.5px;line-height:1.45;padding:2px 2px 6px}.coursbody p{margin:6px 0}.coursbody ol{margin:6px 0;padding-left:20px}
+.lgwin{width:790px;background:#2b333b;color:#e2e8f0}.lgwin .wh{background:#1b2127}.lgwin canvas{background:#0b1410;border:2px solid #111;border-radius:4px;display:block;width:100%;cursor:crosshair}
+.lginfo{font:12px var(--mono);margin:4px 2px;min-height:1.3em}.lgctl{display:grid;grid-template-columns:1.1fr .9fr 1fr;gap:6px;margin-top:4px;font-size:12px}.lgctl fieldset{border:1px solid #4b5864;border-radius:6px;padding:4px 6px;margin:0}.lgctl legend{font-size:11px;color:#9fb0c0}
+.lgctl select,.lgctl input[type=number]{background:#1b2127;color:#e2e8f0;border-color:#4b5864;max-width:100%}.lgctl .lgwide{grid-column:1/-1}.lgrow{display:flex;gap:4px;margin:3px 0}.lgproto{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-top:4px}.lgf select{max-width:120px}.lgctl .small{font-size:11px;color:#9fb0c0}
+.lgdec{margin-top:6px;background:#111a15;border:1px solid #2d3b33;border-radius:6px;padding:6px 8px;font-size:12.5px;max-height:210px;overflow:auto}.lgtxt{font:13px var(--mono);background:#0b1410;padding:4px 6px;border-radius:4px;margin:4px 0;white-space:pre-wrap;word-break:break-all}.lghex{font:12px var(--mono);color:#cbd5e1;word-break:break-all}.lgfr{margin:5px 0;padding:3px 6px;border-left:3px solid #38bdf8;background:#0f1a14}
+.scwin button,.lgwin button{background:#3b4a5a;color:#f1f5f9;border:1px solid #5b6b7b;border-radius:5px;padding:3px 8px;cursor:pointer}.scwin button:hover,.lgwin button:hover{background:#4b5d70}
 
 </style>
 </head>
@@ -381,7 +386,7 @@ class Engine {
     let dmax = 0, vmax = 0; const nv = this.nNodes - 1;
     for (let i = 0; i < nv; i++) { const d = Math.abs(this.x[i] - this.xp[i]); if (d > dmax) dmax = d; const a = Math.abs(this.x[i]); if (a > vmax) vmax = a; }
     this.lastDelta = dmax;
-    this.t += hh; this.h = hh;
+    this.t += hh; this.h = hh; this.dtCap = Infinity;
     for (const e of this.els) if (e.accept) e.accept(this, hh);
     this.xp.set(this.x); this.stats.steps++;
     // choix du pas suivant
@@ -391,6 +396,7 @@ class Engine {
       if (dmax > lim) this.dtNext = Math.max(this.dtMin, hh * 0.5);
       else if (dmax < lim * 0.25) this.dtNext = Math.min(this.dtMax, hh * 1.3);
     }
+    if (this.dtCap < this.dtNext) this.dtNext = Math.max(this.dtMin, this.dtCap);   // les circuits à seuils (555, logique) demandent des pas fins près d'un basculement
     if (this.dtNext > this.dtMax) this.dtNext = this.dtMax;
     return ok;
   }
@@ -403,7 +409,7 @@ class Engine {
       // pas courant, jamais inférieur à dtMin (sinon un pas « reste de trame » minuscule faisait avaler toute la trame suivante en un seul pas de 16 ms)
       const dn = Math.max(this.dtNext, this.dtMin); let h = Math.min(dn, tEnd - this.t); if (h <= 0) break;
       this.step(h);
-      if (h < dn * 0.5) this.dtNext = Math.max(this.dtNext, dn);   // pas tronqué par la fin de la trame d'affichage : on garde le pas précédent
+      if (h < dn * 0.5) this.dtNext = Math.max(this.dtNext, Math.min(dn, this.dtCap));   // pas tronqué par la fin de la trame d'affichage : on garde le pas précédent
       if ((++n & 31) === 0 && budgetMs && Date.now() - t0 > budgetMs) break;
     }
     return this.t;
@@ -437,6 +443,8 @@ class El {
   get burnt() { return this.inst.burnt; }
   burn(eng, why) { if (this.inst.burnt) return; this.inst.burnt = why; this.ver++; if (eng.kick) eng.kick(); ev(eng, 'burn', this, why); }
 }
+
+NS.El = El; NS.ev = ev;
 
 /* ---------------- Résistance (aussi LDR, CTN) ---------------- */
 class Resistor extends El {
@@ -904,13 +912,432 @@ MODELS.scope = (i, p) => new Scope(i, p);
 
 </script>
 <script>
+/* models_ic.js — circuits intégrés et semi-conducteurs « actifs » : portes logiques, bascule D, compteur, NE555, optocoupleur, MOSFET */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const { VT, sexp, heat, pnjlim, El, ev, MODELS } = NS; NS.LIB = NS.LIB || {};
+
+/* aide au pas adaptatif : demande un pas assez fin quand une grandeur approche son seuil */
+function capDt(eng, v, vold, thr, h) {
+  const slew = Math.abs(v - vold) / h; if (slew < 1e-9) return;
+  const m = Math.abs(v - thr); const c = Math.max(2e-7, 0.35 * m / slew); if (c < eng.dtCap) eng.dtCap = c;
+}
+NS.capDt = capDt;
+
+/* ======================== LOGIQUE ======================== */
+const LFAM = {
+  HC: { Vmin: 2, Vmax: 6, ttl: false, Ro: 45, dH: 0.05, dL: 0.05, RoL: 45, Gq: 2e-7, name: '74HC (CMOS, 2–6 V)' },
+  LS: { Vmin: 4.5, Vmax: 5.5, ttl: true, Ro: 70, dH: 1.6, dL: 0.3, RoL: 12, Gq: 1 / 6000, name: '74LS (TTL, 5 V)' },
+  CD: { Vmin: 3, Vmax: 15, ttl: false, Ro: 300, dH: 0.05, dL: 0.05, RoL: 300, Gq: 2e-7, name: 'CD4000B (CMOS, 3–15 V)' },
+};
+NS.LFAM = LFAM;
+/* spec : in = indices des entrées, out = sorties, vcc, gnd, pu = entrées « actives à 0 » (rappel au niveau haut) */
+class Logic extends El {
+  constructor(i, p, spec) { super(i, p); this.spec = spec; this.fam = LFAM[p.fam] || LFAM.HC; }
+  stampLin(eng) {
+    const sp = this.spec, ix = this.ix, VCC = ix[sp.vcc], GND = ix[sp.gnd], f = this.fam, s = this.s;
+    for (const k of sp.in) { const n = ix[k]; if (f.ttl) eng.cond(n, VCC, 1 / 12000); else eng.cond(n, GND, 1e-8); if (sp.pu && sp.pu.includes(k) && !f.ttl) eng.cond(n, VCC, 1e-7); }
+    eng.cond(VCC, GND, s.on ? f.Gq * (sp.nq || 1) : 1e-9);
+    sp.out.forEach((k, j) => {
+      let lv = (s.o && s.o[j]) ? 1 : 0; if (this.fault === 'stuck0') lv = 0; else if (this.fault === 'stuck1') lv = 1;
+      if (!s.on || this.fault === 'dead' || this.burnt) { eng.cond(ix[k], GND, 1e-9); return; }
+      eng.cond(ix[k], lv ? VCC : GND, 1 / (lv ? f.Ro : f.RoL));
+    });
+  }
+  rhsLin(eng) {
+    const sp = this.spec, ix = this.ix, f = this.fam, s = this.s;
+    if (!s.on || this.fault === 'dead' || this.burnt) return;
+    sp.out.forEach((k, j) => { let lv = (s.o && s.o[j]) ? 1 : 0; if (this.fault === 'stuck0') lv = 0; else if (this.fault === 'stuck1') lv = 1; if (lv) eng.rhs(ix[k], -f.dH / f.Ro); else eng.rhs(ix[k], f.dL / f.RoL); });
+  }
+  level(eng, v, Vs, prev) { // niveau logique d'une entrée avec hystérésis
+    const f = this.fam; let hi, lo;
+    if (f.ttl) { hi = this.spec.schmitt ? 1.7 : 1.5; lo = this.spec.schmitt ? 0.9 : 1.2; }
+    else { hi = Vs * (this.spec.schmitt ? 0.68 : 0.55); lo = Vs * (this.spec.schmitt ? 0.32 : 0.45); }
+    if (v > hi) return 1; if (v < lo) return 0; return prev ? 1 : 0;
+  }
+  accept(eng, dt) {
+    const sp = this.spec, ix = this.ix, s = this.s, f = this.fam, VCC = ix[sp.vcc], GND = ix[sp.gnd];
+    const Vs = eng.v(VCC) - eng.v(GND), vg = eng.v(GND);
+    const on = Vs >= f.Vmin * 0.95 && this.fault !== 'dead' && !this.burnt; let ch = false;
+    if (!!s.on !== on) { s.on = on; ch = true; }
+    this.Vs = Vs;
+    if (!s.i) { s.i = sp.in.map(() => 0); s.o = sp.out.map(() => 0); s.ck = 0; s.n = 0; ch = true; }
+    const lv = sp.in.map((k, j) => { const v = eng.v(ix[k]) - vg; const thr = f.ttl ? (s.i[j] ? 1.2 : 1.5) : Vs * (s.i[j] ? 0.45 : 0.55); if (on) capDt(eng, v, eng.vp(ix[k]) - eng.vp(GND), thr, dt); return this.level(eng, v, Vs, s.i[j]); });
+    if (on) {
+      const out = this.fn(lv, s, sp);
+      sp.out.forEach((k, j) => { if ((out[j] ? 1 : 0) !== (s.o[j] ? 1 : 0)) { s.o[j] = out[j] ? 1 : 0; ch = true; } });
+      s.i = lv;
+    }
+    s.out = s.o[0]; s.q = s.o[0]; s.q2 = s.o[1]; s.q3 = s.o[2]; s.q4 = s.o[3];
+    if (ch) this.ver++;
+    if (this.burnt) return;
+    if (Vs > f.Vmax * 1.25 && heat(s, 'hv', 3, dt, 0.05)) { this.burn(eng, 'HS'); return; }
+    if (on) sp.out.forEach((k, j) => { const lvl = s.o[j] ? 1 : 0, Vy = eng.v(ix[k]); const I = lvl ? (eng.v(VCC) - f.dH - Vy) / f.Ro : (Vy - vg - f.dL) / f.RoL; if (heat(s, 'hi' + j, Math.abs(I) / (f.ttl ? 0.04 : 0.05), dt, 0.2, 2)) this.burn(eng, 'HS'); this.Iout = I; });
+  }
+}
+/* fonctions logiques */
+const GATES = {
+  AND: (a, b) => a & b, NAND: (a, b) => 1 - (a & b), OR: (a, b) => a | b, NOR: (a, b) => 1 - (a | b), XOR: (a, b) => a ^ b, XNOR: (a, b) => 1 - (a ^ b),
+};
+NS.GATEFN = GATES;
+MODELS.gate = (i, p) => { const e = new Logic(i, p, { in: [0, 1], out: [2], vcc: 3, gnd: 4, nq: 1 }); const F = GATES[p.fn] || GATES.AND; e.fn = (lv) => [F(lv[0], lv[1])]; return e; };
+MODELS.inv = (i, p) => { const sch = p.fn === 'SCHMITT'; const e = new Logic(i, p, { in: [0], out: [1], vcc: 2, gnd: 3, schmitt: sch, nq: 1 }); e.fn = (lv) => [p.fn === 'BUF' ? lv[0] : 1 - lv[0]]; return e; };
+/* bascule D (74xx74) : D, CK, S̅, R̅, Q, Q̅, VCC, GND */
+MODELS.dff = (i, p) => { const e = new Logic(i, p, { in: [0, 1, 2, 3], out: [4, 5], vcc: 6, gnd: 7, pu: [2, 3], nq: 2 });
+  e.fn = (lv, s) => { const [d, ck, sb, rb] = lv; let q = s.qs || 0; if (!sb && !rb) { s.ck = ck; return [1, 1]; } if (!sb) q = 1; else if (!rb) q = 0; else if (ck && !s.ck) q = d; s.ck = ck; s.qs = q; return [q, 1 - q]; }; return e; };
+/* compteur binaire 4 bits : CK (front montant), MR (remise à zéro active à 1), Q0..Q3 */
+MODELS.cnt4 = (i, p) => { const e = new Logic(i, p, { in: [0, 1], out: [2, 3, 4, 5], vcc: 6, gnd: 7, nq: 2 });
+  e.fn = (lv, s) => { const [ck, mr] = lv; let n = s.n || 0; if (mr) n = 0; else if (ck && !s.ck) n = (n + 1) & 15; s.ck = ck; s.n = n; return [n & 1, (n >> 1) & 1, (n >> 2) & 1, (n >> 3) & 1]; }; return e; };
+
+/* ======================== NE555 / TLC555 ======================== */
+const T555 = {
+  'NE555': { Vmin: 4.5, Vmax: 16, Gq: 1 / 1500, dH: 1.7, dL: 0.1, Ro: 20, RoL: 10, Rdis: 10, Imax: 0.2, name: 'NE555 (bipolaire, 4,5–16 V, 200 mA)' },
+  'TLC555': { Vmin: 2, Vmax: 15, Gq: 1 / 50000, dH: 0.1, dL: 0.1, Ro: 40, RoL: 25, Rdis: 25, Imax: 0.01, name: 'TLC555 (CMOS, 2–15 V, 10 mA)' },
+};
+NS.LIB.T555 = T555;
+// broches : GND, TRIG, OUT, RESET, CTRL, THR, DIS, VCC
+class Timer555 extends El {
+  constructor(i, p) { super(i, p); }
+  outState() { const s = this.s; return (s.q && !s.rs && s.on) ? 1 : 0; }
+  stampLin(eng) {
+    const [GND, TRIG, OUT, RST, CTRL, THR, DIS, VCC] = this.ix, p = this.p, s = this.s;
+    eng.cond(VCC, CTRL, 1 / 5000); eng.cond(CTRL, GND, 1 / 10000);        // pont diviseur interne 3 × 5 kΩ
+    eng.cond(THR, GND, 1e-8); eng.cond(TRIG, VCC, 1e-8); eng.cond(RST, VCC, 1 / 200000);
+    eng.cond(VCC, GND, s.on ? p.Gq : 1e-9);
+    if (!s.on || this.fault === 'dead' || this.burnt) { eng.cond(OUT, GND, 1e-9); eng.cond(DIS, GND, 1e-9); return; }
+    const hi = this.outState();
+    eng.cond(OUT, hi ? VCC : GND, 1 / (hi ? p.Ro : p.RoL)); eng.cond(DIS, GND, hi ? 1e-9 : 1 / p.Rdis);
+  }
+  rhsLin(eng) {
+    const OUT = this.ix[2], p = this.p, s = this.s; if (!s.on || this.fault === 'dead' || this.burnt) return;
+    if (this.outState()) eng.rhs(OUT, -p.dH / p.Ro); else eng.rhs(OUT, p.dL / p.RoL);
+  }
+  accept(eng, dt) {
+    const [GND, TRIG, OUT, RST, CTRL, THR, DIS, VCC] = this.ix, p = this.p, s = this.s, vg = eng.v(GND);
+    const Vs = eng.v(VCC) - vg, Vc = eng.v(CTRL) - vg, vthr = eng.v(THR) - vg, vtr = eng.v(TRIG) - vg, vr = eng.v(RST) - vg;
+    const on = Vs >= p.Vmin && this.fault !== 'dead' && !this.burnt; let ch = false; this.Vs = Vs;
+    if (!!s.on !== on) { s.on = on; ch = true; }
+    if (on) {
+      const prevOut = this.outState(); const rs = vr < 0.7; if (!!s.rs !== rs) { s.rs = rs ? 1 : 0; ch = true; }
+      let q = s.q || 0;
+      if (vthr > Vc) q = 0; else if (vtr < Vc / 2) q = 1;
+      if (q !== (s.q || 0)) { s.q = q; ch = true; }
+      // pas fins près des seuils des comparateurs
+      capDt(eng, vthr, eng.vp(THR) - eng.vp(GND), Vc, dt); capDt(eng, vtr, eng.vp(TRIG) - eng.vp(GND), Vc / 2, dt);
+      this.out = this.outState(); s.out = this.out; if (this.out !== prevOut) ch = true;
+    }
+    this.Vc = Vc; if (ch) this.ver++;
+    if (this.burnt) return;
+    if (Vs > p.Vmax * 1.2 && heat(s, 'hv', 3, dt, 0.05)) { this.burn(eng, 'HS'); return; }
+    if (on) { const hi = this.outState(), Vy = eng.v(OUT); const I = hi ? (eng.v(VCC) - p.dH - Vy) / p.Ro : (Vy - vg - p.dL) / p.RoL; this.Iout = I; if (heat(s, 'hi', Math.abs(I) / (p.Imax * 1.5), dt, 0.3, 3)) this.burn(eng, 'HS'); }
+  }
+}
+MODELS.timer555 = (i, p) => new Timer555(i, p);
+
+/* ======================== OPTOCOUPLEUR ======================== */
+const OPTOS = {
+  'PC817': { CTR: 1.0, Vf: 1.2, Ifmax: 0.05, Vceo: 80, Pmax: 0.15, name: 'PC817 (CTR ≈ 100 %, 80 V)' },
+  'PC817C': { CTR: 2.5, Vf: 1.2, Ifmax: 0.05, Vceo: 80, Pmax: 0.15, name: 'PC817C (CTR 200–400 %)' },
+  '4N25': { CTR: 0.25, Vf: 1.2, Ifmax: 0.06, Vceo: 30, Pmax: 0.15, name: '4N25 (CTR ≈ 20–30 %, 30 V)' },
+};
+NS.LIB.OPTOS = OPTOS;
+// broches : A, K (LED), C, E (phototransistor)
+class Opto extends El {
+  constructor(i, p) { super(i, p); this.nl = true; this.nInt = 1; const n = 1.8, Rs = 10, If = 0.02; this.Rs = Rs; this.n = n; this.Is = If / Math.exp((p.Vf - If * Rs) / (n * VT)); this.nvt = n * VT; this.vcrit = this.nvt * Math.log(this.nvt / (Math.SQRT2 * this.Is)); }
+  stampLin(eng) { eng.cond(this.ix[0], this.ii[0], 1 / this.Rs); }
+  stampNL(eng) {
+    const [A, K, C, E] = this.ix, ai = this.ii[0], s = this.s, p = this.p;
+    if (this.burnt) { eng.cond(ai, K, 1e-12); eng.cond(C, E, 1e-12); return; }
+    let vd = eng.v(ai) - eng.v(K); const vold = s.vdi !== undefined ? s.vdi : 0; const vl = pnjlim(vd, vold, this.nvt, this.vcrit); if (vl !== vd) eng.noncon = true; s.vdi = vl;
+    const e = sexp(vl / this.nvt); let Id = this.Is * (e - 1) + 1e-12 * vl; const Gd = this.Is * e / this.nvt + 1e-12;
+    if (this.fault === 'ledOpen') { Id = 0; }
+    const ctr = p.CTR * (1 + (this.inst.dev || 0) * 0.25); let vce = eng.v(C) - eng.v(E); const Vs = 0.25;
+    if (s.vcei !== undefined && Math.abs(vce - s.vcei) > 4) { vce = s.vcei + Math.sign(vce - s.vcei) * 4; eng.noncon = true; } s.vcei = vce;   // limitation de Newton sur V_CE
+    const th = vce > 0 ? vce / (Vs + vce) : vce / Vs, dth = vce > 0 ? Vs / ((Vs + vce) * (Vs + vce)) : 1 / Vs;
+    const open = this.fault === 'phOpen'; const Idn = Math.max(Id, 0);
+    const Ic = open ? 0 : ctr * Idn * th + 1e-7 * th, dd = open ? 0 : ctr * (Id > 0 ? Gd : 0) * th, dc = open ? 0 : ctr * Idn * dth;
+    const nodes = [ai, K, C, E], v0 = [vl + eng.v(K), eng.v(K), eng.v(E) + vce, eng.v(E)];
+    const g = this.fault === 'ledOpen' ? 1e-12 : Gd;
+    eng.nlStamp(nodes, [Id, -Id, Ic, -Ic], [[g, -g, 0, 0], [-g, g, 0, 0], [dd, -dd, dc, -dc], [-dd, dd, -dc, dc]], v0);
+    this.Ic = Ic; this.If = Id; s.vcei = eng.v(C) - eng.v(E);
+  }
+  accept(eng, dt) {
+    const [A, K, C, E] = this.ix, ai = this.ii[0], s = this.s, p = this.p; const vd = eng.v(ai) - eng.v(K); s.vd = vd; s.vdi = vd;
+    this.I = (eng.v(A) - eng.v(ai)) / this.Rs; this.V = eng.v(A) - eng.v(K); this.Vce = eng.v(C) - eng.v(E);
+    if (this.burnt) return;
+    const u = Math.abs(this.I) / p.Ifmax; if (heat(s, 'h', u * u, dt, 0.1, 2)) this.burn(eng, 'ouvert');
+    const P = Math.abs(this.Vce * (this.Ic || 0)); if (heat(s, 'hp', P / p.Pmax, dt, 0.3, 3) || (Math.abs(this.Vce) > p.Vceo * 1.15 && heat(s, 'hv', 3, dt, 0.05))) this.burn(eng, 'ouvert');
+    if (this.V < -6 * 1.3 && heat(s, 'hr', 3, dt, 0.05)) this.burn(eng, 'ouvert');
+  }
+}
+MODELS.opto = (i, p) => new Opto(i, p);
+
+/* ======================== MOSFET ======================== */
+const MOSFETS = {
+  '2N7000': { Vth: 2.1, K: 0.1, lam: 0.02, Imax: 0.2, Vdsmax: 60, Pmax: 0.4, pch: false, Cg: 20e-12, name: '2N7000 (N, 60 V, 200 mA)' },
+  'IRF540N': { Vth: 3.0, K: 3.3, lam: 0.01, Imax: 33, Vdsmax: 100, Pmax: 25, pch: false, Cg: 1.7e-9, name: 'IRF540N (N, 100 V, 33 A)' },
+  'IRLZ44N': { Vth: 1.6, K: 6.0, lam: 0.01, Imax: 47, Vdsmax: 55, Pmax: 30, pch: false, Cg: 1.7e-9, name: 'IRLZ44N (N logic-level, 55 V, 47 A)' },
+  'BS250': { Vth: 2.0, K: 0.06, lam: 0.02, Imax: 0.18, Vdsmax: 45, Pmax: 0.7, pch: true, Cg: 40e-12, name: 'BS250 (P, 45 V, 180 mA)' },
+  'IRF9540N': { Vth: 3.0, K: 1.9, lam: 0.01, Imax: 23, Vdsmax: 100, Pmax: 25, pch: true, Cg: 1.4e-9, name: 'IRF9540N (P, 100 V, 23 A)' },
+};
+NS.LIB.MOSFETS = MOSFETS;
+// broches : G, D, S
+class Mosfet extends El {
+  constructor(i, p) { super(i, p); this.nl = true; this.nInt = 0; this.nBr = 0; const n = 1.2; this.Is = 1e-11; this.nvt = n * VT; this.vcrit = this.nvt * Math.log(this.nvt / (Math.SQRT2 * this.Is)); }
+  stampLin(eng) { const [G, D, S] = this.ix, p = this.p; eng.cond(G, S, 1e-11 + (this.fault === 'gs' ? 1 : 0)); if (this.fault === 'ds' || this.burnt === 'court-circuit') eng.cond(D, S, 20); }
+  stampNL(eng) {
+    const [G, D, S] = this.ix, p = this.p, s = this.s, sg = p.pch ? -1 : 1;
+    if (this.fault === 'ds' || this.burnt === 'court-circuit') { this.Id = sg * 20 * (eng.v(D) - eng.v(S)); return; }
+    if (this.fault === 'open' || this.burnt === 'ouvert') { eng.cond(D, S, 1e-12); this.Id = 0; return; }
+    const vG = sg * eng.v(G), vD = sg * eng.v(D), vS = sg * eng.v(S);
+    const rev = vD < vS, dn = rev ? S : D, sn = rev ? D : S, vd = rev ? vS : vD, vs = rev ? vD : vS;     // source = borne la plus basse
+    const vgs = vG - vs, vds = vd - vs, vov = vgs - p.Vth, eps = 0.0025;
+    const sq = Math.sqrt(vov * vov + eps), veff = 0.5 * (vov + sq), dv = 0.5 * (1 + vov / sq);
+    const K = p.K * (1 + (this.inst.dev || 0) * 0.1), lam = p.lam; let Id, gm, gds;
+    if (vds < veff) { const f = veff * vds - vds * vds / 2, m = 1 + lam * vds; Id = K * f * m; gm = K * vds * m * dv; gds = K * (veff - vds) * m + K * f * lam; }
+    else { const f = veff * veff / 2, m = 1 + lam * vds; Id = K * f * m; gm = K * veff * m * dv; gds = K * f * lam; }
+    // courants entrants (variables « virtuelles » : drain/source effectifs) ; dérivées par rapport aux tensions réelles (le facteur sg s'élimine)
+    const nodes = [G, dn, sn], gnd = [0, gds, 0];
+    const J = [[0, 0, 0], [gm, gds, -(gm + gds)], [-gm, -gds, gm + gds]];
+    const Ir = [0, sg * Id, -sg * Id]; // courant entrant dans dn = sg·Id
+    eng.nlStamp(nodes, Ir, J, [eng.v(G), eng.v(dn), eng.v(sn)]);
+    // diode « body » source → drain (jonction p-n intrinsèque)
+    const nb = p.pch ? [D, S] : [S, D]; let vb = eng.v(nb[0]) - eng.v(nb[1]); const vold = s.vbd !== undefined ? s.vbd : 0; const vl = pnjlim(vb, vold, this.nvt, this.vcrit); if (vl !== vb) eng.noncon = true; s.vbd = vl;
+    const e = sexp(vl / this.nvt), Ib = this.Is * (e - 1), Gb = this.Is * e / this.nvt + 1e-12; eng.cond(nb[0], nb[1], Gb); const ieq = Ib - Gb * vl; eng.rhs(nb[0], -ieq); eng.rhs(nb[1], ieq);
+    this.Id = sg * Id * (rev ? -1 : 1); this.gm = gm; this.Idr = Id;
+  }
+  accept(eng, dt) {
+    const [G, D, S] = this.ix, p = this.p, s = this.s, sg = p.pch ? -1 : 1; const vgs = sg * (eng.v(G) - eng.v(S)), vds = sg * (eng.v(D) - eng.v(S));
+    this.Vgs = vgs; this.Vds = vds; s.vbd = sg > 0 ? eng.v(S) - eng.v(D) : eng.v(D) - eng.v(S);
+    this.Id = Math.abs(this.Idr || 0) * Math.sign(vds || 1);
+    if (this.burnt) return;
+    if (Math.abs(vgs) > 24 && heat(s, 'hg', 3, dt, 0.02)) { this.burn(eng, 'court-circuit'); return; }
+    const P = Math.abs(vds * this.Idr), u = Math.max(P / p.Pmax, Math.abs(this.Idr) / (p.Imax * 1.5));
+    if (heat(s, 'h', u, dt, 0.5, 4)) this.burn(eng, 'court-circuit');
+    if (Math.abs(vds) > p.Vdsmax * 1.2 && heat(s, 'hv', 3, dt, 0.05)) this.burn(eng, 'court-circuit');
+  }
+}
+MODELS.mosfet = (i, p) => new Mosfet(i, p);
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* protocols.js — génération de trames (UART/RS-232, Modbus RTU/RS-485, I²C, SPI) et décodeurs. Fonctions pures (testables sous Node). */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const P = NS.PROTO = {};
+
+/* ---------- utilitaires ---------- */
+P.crc16 = bytes => { let c = 0xFFFF; for (const b of bytes) { c ^= b; for (let i = 0; i < 8; i++) c = (c & 1) ? (c >> 1) ^ 0xA001 : c >> 1; } return c & 0xFFFF; };
+P.parseText = s => { const o = []; s = String(s == null ? '' : s); for (let i = 0; i < s.length; i++) { const ch = s[i]; if (ch === '\\' && i + 1 < s.length) { const n = s[i + 1]; if (n === 'r') { o.push(13); i++; } else if (n === 'n') { o.push(10); i++; } else if (n === 't') { o.push(9); i++; } else if (n === 'x' && /^[0-9a-fA-F]{2}$/.test(s.substr(i + 2, 2))) { o.push(parseInt(s.substr(i + 2, 2), 16)); i += 3; } else o.push(92); } else o.push(s.charCodeAt(i) & 0xFF); } return o; };
+P.parseHex = s => String(s || '').split(/[\s,;]+/).filter(Boolean).map(x => parseInt(x.replace(/^0x/i, ''), 16)).filter(x => isFinite(x)).map(x => x & 0xFF);
+P.parseNums = s => String(s || '').split(/[\s,;]+/).filter(Boolean).map(Number).filter(x => isFinite(x)).map(x => x & 0xFFFF);
+const hex = (b, n) => ('0'.repeat(n || 2) + b.toString(16).toUpperCase()).slice(-(n || 2));
+P.hex = hex;
+P.ascii = b => (b >= 32 && b < 127) ? String.fromCharCode(b) : (b === 13 ? '␍' : b === 10 ? '␊' : b === 9 ? '⇥' : '·');
+
+/* générateur d'événements : lignes {nom: [[t, niveau]...]}, niveau 0/1 ; niveau initial à t = 0 */
+class Gen { constructor(names, idle) { this.ev = {}; this.cur = {}; names.forEach((n, i) => { this.ev[n] = [[0, idle[i]]]; this.cur[n] = idle[i]; }); }
+  set(n, t, v) { v = v ? 1 : 0; if (this.cur[n] === v) return; const a = this.ev[n]; if (a.length && t < a[a.length - 1][0]) t = a[a.length - 1][0]; this.cur[n] = v; a.push([t, v]); } }
+
+/* UART : start 0, bits LSB d'abord, parité, stop(s) à 1 */
+P.uartBits = (byte, nb, par, stop) => { const b = [0]; let ones = 0; for (let i = 0; i < nb; i++) { const x = (byte >> i) & 1; b.push(x); ones += x; } if (par === 'E') b.push(ones & 1); else if (par === 'O') b.push((ones & 1) ^ 1); for (let i = 0; i < stop; i++) b.push(1); return b; };
+function uartStream(g, name, t, bytes, p, inv) { const Tb = 1 / p.baud; const nb = +p.bits || 8, stop = +p.stop || 1, gap = +p.gap || 0; for (const by of bytes) { for (const bit of P.uartBits(by, nb, p.parity || 'N', stop)) { g.set(name, t, inv ? 1 - bit : bit); t += Tb; } t += gap * Tb; } return t; }
+P.frameLen = p => (1 + (+p.bits || 8) + ((p.parity && p.parity !== 'N') ? 1 : 0) + (+p.stop || 1)) / p.baud;
+
+/* Modbus RTU : requête maître + réponse esclave (fonctions 03 et 06) */
+P.modbusFrames = p => {
+  const addr = p.addr & 0xFF, fn = p.func & 0xFF, reg = p.reg & 0xFFFF, regs = P.parseNums(p.regs);
+  const withCrc = a => { const c = P.crc16(a); return a.concat([c & 0xFF, c >> 8]); };
+  let req, rsp;
+  if (fn === 6) { const val = p.qty & 0xFFFF; req = withCrc([addr, 6, reg >> 8, reg & 0xFF, val >> 8, val & 0xFF]); rsp = (reg < regs.length || regs.length === 0) ? withCrc([addr, 6, reg >> 8, reg & 0xFF, val >> 8, val & 0xFF]) : withCrc([addr, 0x86, 2]); }
+  else { const q = Math.max(1, p.qty & 0xFFFF); req = withCrc([addr, 3, reg >> 8, reg & 0xFF, q >> 8, q & 0xFF]);
+    if (reg + q > regs.length) rsp = withCrc([addr, 0x83, 2]); else { const d = []; for (let i = 0; i < q; i++) { const v = regs[reg + i] || 0; d.push(v >> 8, v & 0xFF); } rsp = withCrc([addr, 3, d.length].concat(d)); } }
+  if (p.corrupt) rsp[rsp.length - 1] ^= 0x5A;
+  return { req, rsp };
+};
+P.rs485 = p => { // lignes A et B (différentiel) : logique 1 (repos) = A < B
+  const g = new Gen(['L'], [1]); const f = P.modbusFrames(p); const Tc = P.frameLen({ baud: p.baud, bits: 8, parity: p.parity, stop: p.stop });
+  let t = 0.002; t = uartStream(g, 'L', t, f.req, { baud: p.baud, bits: 8, parity: p.parity, stop: p.stop }, false);
+  t += Math.max(+p.delay || 0.004, 4 * Tc); t = uartStream(g, 'L', t, f.rsp, { baud: p.baud, bits: 8, parity: p.parity, stop: p.stop }, false); g.set('L', t, 1);
+  const period = Math.max(+p.every || 0.2, t + 10 * Tc); return { period, lines: { A: g.ev.L.map(e => [e[0], e[1]]), B: g.ev.L.map(e => [e[0], 1 - e[1]]) }, frames: f, t1: t };
+};
+/* UART simple */
+P.uart = p => { const g = new Gen(['TX'], [(p.polarity === 'inv') ? 0 : 1]); const bytes = P.parseText(p.msg); const inv = p.polarity === 'inv'; let t = 0.002; t = uartStream(g, 'TX', t, bytes, p, inv); g.set('TX', t, inv ? 0 : 1);
+  const period = Math.max(+p.every || 0.1, t + 4 / p.baud); return { period, lines: g.ev, bytes, t1: t }; };
+/* I²C : écriture ou lecture sur adresse 7 bits ; niveaux 1 = ligne relâchée */
+P.i2c = p => {
+  const g = new Gen(['SCL', 'SDA'], [1, 1]); const T = 1 / p.freq; let t = 0.001;
+  const bit = (b) => { g.set('SDA', t + 0.05 * T, b); g.set('SCL', t + 0.25 * T, 1); g.set('SCL', t + 0.75 * T, 0); t += T; };
+  g.set('SDA', t, 0); t += 0.25 * T; g.set('SCL', t, 0); t += 0.25 * T;                      // START
+  const rd = p.rw === 'R', addr = p.addr & 0x7F, ack = p.ack !== false && p.ack !== 'non';
+  const byte = (v, acked) => { for (let i = 7; i >= 0; i--) bit((v >> i) & 1); bit(acked ? 0 : 1); };
+  for (let i = 6; i >= 0; i--) bit((addr >> i) & 1); bit(rd ? 1 : 0); bit(ack ? 0 : 1);
+  let data = P.parseHex(p.data); if (!data.length) data = [0];
+  if (ack) data.forEach((v, k) => { for (let i = 7; i >= 0; i--) bit((v >> i) & 1); bit(rd ? (k === data.length - 1 ? 1 : 0) : 0); });
+  g.set('SDA', t + 0.05 * T, 0); g.set('SCL', t + 0.25 * T, 1); g.set('SDA', t + 0.5 * T, 1); t += T;   // STOP
+  return { period: Math.max(+p.every || 0.05, t + 5 * T), lines: g.ev, t1: t, data };
+};
+/* SPI : modes 0–3, MSB d'abord */
+P.spi = p => {
+  const g = new Gen(['CS', 'SCK', 'MOSI', 'MISO'], [1, (p.mode >> 1) & 1, 0, 0]); const Tb = 1 / p.freq, cpol = (p.mode >> 1) & 1, cpha = p.mode & 1;
+  const mosi = P.parseHex(p.data), miso = P.parseHex(p.reply); let t = 0.001; g.set('CS', t, 0); t += Tb;
+  mosi.forEach((m, k) => { const r = miso.length ? (miso[k % miso.length]) : (~m & 0xFF); for (let i = 7; i >= 0; i--) {
+    const bm = (m >> i) & 1, br = (r >> i) & 1;
+    if (!cpha) { g.set('MOSI', t, bm); g.set('MISO', t, br); g.set('SCK', t + Tb / 2, 1 - cpol); g.set('SCK', t + Tb, cpol); }
+    else { g.set('SCK', t, 1 - cpol); g.set('MOSI', t + 0.05 * Tb, bm); g.set('MISO', t + 0.05 * Tb, br); g.set('SCK', t + Tb / 2, cpol); }
+    t += Tb; } });
+  t += Tb / 2; g.set('CS', t, 1); return { period: Math.max(+p.every || 0.05, t + 5 * Tb), lines: g.ev, t1: t, mosi, miso };
+};
+
+/* ---------- décodage ---------- */
+/* ev : [[t,niveau]...] trié ; niveau à l'instant t (maintien) */
+const lvAt = (ev, t) => { let lo = 0, hi = ev.length - 1; if (!ev.length) return 0; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ev[m][0] <= t) lo = m; else hi = m - 1; } return ev[lo][0] <= t ? ev[lo][1] : ev[0][1]; };
+P.lvAt = lvAt;
+/* convertit des échantillons analogiques (t[], v[]) en événements logiques par seuil avec hystérésis */
+P.toEvents = (t, v, thr, hy) => { hy = hy === undefined ? 0.1 : hy; const ev = []; let lv = null; for (let i = 0; i < t.length; i++) { const x = v[i]; let n = lv; if (lv === null) n = x > thr ? 1 : 0; else if (lv === 0 && x > thr + hy) n = 1; else if (lv === 1 && x < thr - hy) n = 0; if (n !== lv) { ev.push([t[i], n]); lv = n; } } return ev; };
+/* événements d'une voie (ou d'une paire différentielle ch − ch2) à partir du tampon de l'analyseur */
+P.ringEvents = (ring, ch, thr, ch2) => { const T = [], V = []; for (let j = 0; j < ring.n; j++) { const i = ring.idx(j); T.push(ring.t[i]); V.push(ring.v[ch][i] - (ch2 >= 0 && ch2 !== undefined && ch2 !== null ? ring.v[ch2][i] : 0)); } return P.toEvents(T, V, thr, ch2 >= 0 && ch2 !== undefined && ch2 !== null ? 0.05 : 0.15); };
+P.invert = ev => ev.map(e => [e[0], 1 - e[1]]);
+P.uartDecode = (ev, o, tEnd) => {
+  const Tb = 1 / o.baud, nb = +o.bits || 8, stop = +o.stop || 1, par = o.parity || 'N', out = []; if (!ev.length) return out;
+  const idle = 1; let t = ev[0][0];
+  const falls = ev.filter((e, i) => e[1] === 0 && (i === 0 ? false : ev[i - 1][1] === 1)).map(e => e[0]); let fi = 0;
+  let sync = !o.sync;
+  while (fi < falls.length) {
+    const t0 = falls[fi];
+    if (!sync) { let pr = null; for (let k = ev.length - 1; k >= 0; k--) if (ev[k][0] < t0 && ev[k][1] === 1) { pr = ev[k][0]; break; } const ek = ev.findIndex(e => e[0] === t0); const idleT = ek > 0 ? t0 - ev[ek - 1][0] : 0; if (ek > 0 && idleT >= (nb + 2) * Tb) sync = true; else { fi++; continue; } } if (tEnd !== undefined && t0 + Tb * (nb + 1) > tEnd) break;
+    if (lvAt(ev, t0 + 0.5 * Tb) !== 0) { fi++; continue; }                         // parasite
+    let val = 0, ones = 0; for (let i = 0; i < nb; i++) { const b = lvAt(ev, t0 + (1.5 + i) * Tb); val |= b << i; ones += b; }
+    let k = 1 + nb, err = null;
+    if (par !== 'N') { const pb = lvAt(ev, t0 + (k + 0.5) * Tb); const exp = par === 'E' ? (ones & 1) : ((ones & 1) ^ 1); if (pb !== exp) err = 'parité'; k++; }
+    for (let i = 0; i < stop; i++) if (lvAt(ev, t0 + (k + i + 0.5) * Tb) !== 1) { err = err || 'trame (stop)'; }
+    const t1 = t0 + (k + stop) * Tb; out.push({ t0, t1, byte: val, err, bits: nb });
+    const tn = t0 + (k + stop - 0.3) * Tb; while (fi < falls.length && falls[fi] < tn) fi++;
+  }
+  return out;
+};
+const MBFN = { 1: 'Lire bobines', 2: 'Lire entrées TOR', 3: 'Lire registres de maintien', 4: 'Lire registres d\'entrée', 5: 'Écrire une bobine', 6: 'Écrire un registre', 15: 'Écrire plusieurs bobines', 16: 'Écrire plusieurs registres' };
+P.MBFN = MBFN;
+P.modbusParse = bytes => {
+  if (bytes.length < 4) return { ok: false, text: 'Trame trop courte (' + bytes.length + ' octets)', bytes };
+  const body = bytes.slice(0, -2), crc = bytes[bytes.length - 2] | (bytes[bytes.length - 1] << 8), calc = P.crc16(body), ok = crc === calc;
+  const addr = bytes[0], fn = bytes[1]; let text = 'Esclave ' + addr + ' · ';
+  if (fn & 0x80) text += 'EXCEPTION sur fonction ' + (fn & 0x7F) + ' (code ' + bytes[2] + (bytes[2] === 2 ? ' : adresse de donnée illégale' : bytes[2] === 1 ? ' : fonction illégale' : bytes[2] === 3 ? ' : valeur illégale' : '') + ')';
+  else { text += 'fonction ' + fn + ' (' + (MBFN[fn] || '?') + ')';
+    if ((fn === 3 || fn === 4 || fn === 1 || fn === 2) && bytes.length === 8) text += ' · REQUÊTE : adresse ' + ((bytes[2] << 8) | bytes[3]) + ', quantité ' + ((bytes[4] << 8) | bytes[5]);
+    else if ((fn === 3 || fn === 4) && bytes.length >= 5) { const n = bytes[2], v = []; for (let i = 0; i < n / 2; i++) v.push((bytes[3 + 2 * i] << 8) | bytes[4 + 2 * i]); text += ' · RÉPONSE : ' + n + ' octets → registres [' + v.join(', ') + ']'; }
+    else if (fn === 6 && bytes.length === 8) text += ' · registre ' + ((bytes[2] << 8) | bytes[3]) + ' = ' + ((bytes[4] << 8) | bytes[5]); }
+  return { ok, text, crc, calc, bytes, addr, fn };
+};
+/* regroupe les octets en trames : silence ≥ 3,5 caractères */
+P.modbusDecode = (ev, o, tEnd) => { const by = P.uartDecode(ev, { baud: o.baud, bits: 8, parity: o.parity, stop: o.stop, sync: o.sync }, tEnd); const Tc = P.frameLen({ baud: o.baud, bits: 8, parity: o.parity, stop: o.stop }); const fr = []; let cur = null;
+  for (const b of by) { if (!cur || b.t0 - cur.t1 > 3.5 * Tc) { cur = { t0: b.t0, t1: b.t1, bytes: [], errs: 0 }; fr.push(cur); } cur.bytes.push(b.byte); cur.t1 = b.t1; if (b.err) cur.errs++; }
+  fr.forEach(f => Object.assign(f, P.modbusParse(f.bytes))); return fr; };
+P.i2cDecode = (scl, sda) => {
+  const out = []; const edges = []; scl.forEach(e => edges.push({ t: e[0], c: 'scl', v: e[1] })); sda.forEach((e, i) => { if (i) edges.push({ t: e[0], c: 'sda', v: e[1] }); }); edges.sort((a, b) => a.t - b.t || (a.c === 'scl' ? -1 : 1));
+  let S = scl.length ? scl[0][1] : 1, D = sda.length ? sda[0][1] : 1; let cur = null, bits = [];
+  const fin = (t, stop) => { if (cur) { cur.t1 = t; cur.stop = stop; out.push(cur); cur = null; bits = []; } };
+  const bitEv = (t, v) => { bits.push({ t, v }); if (bits.length === 9) { const val = bits.slice(0, 8).reduce((a, b) => (a << 1) | b.v, 0); const ack = bits[8].v === 0; const first = !cur.addrDone; if (first) { cur.addr = val >> 1; cur.rw = (val & 1) ? 'R' : 'W'; cur.ack = ack; cur.addrDone = true; cur.ev.push({ t0: cur.t0, t1: t, label: 'Adr ' + hex(val >> 1) + (val & 1 ? ' R' : ' W') + (ack ? ' ACK' : ' NACK'), kind: 'addr' }); } else { cur.bytes.push({ v: val, ack }); cur.ev.push({ t0: bits[0].t, t1: t, label: hex(val) + (ack ? ' A' : ' N'), kind: 'data' }); } cur.last = t; bits = []; } };
+  for (const e of edges) {
+    if (e.c === 'scl') { if (e.v === 1 && S === 0) { if (cur) bitEv(e.t, D); } S = e.v; }
+    else { if (S === 1 && D === 1 && e.v === 0) { if (cur) fin(e.t, false); cur = { t0: e.t, bytes: [], ev: [] }; bits = []; } else if (S === 1 && D === 0 && e.v === 1) { fin(e.t, true); } D = e.v; }
+  }
+  if (cur) fin(cur.last || cur.t0, false); return out;
+};
+P.spiDecode = (o, mode, nb) => { // o : {cs, clk, mosi, miso} événements
+  nb = nb || 8; const cpol = (mode >> 1) & 1, cpha = mode & 1, out = []; const csE = o.cs; if (!csE.length) return out;
+  const act = []; let st = null; for (const e of csE) { if (e[1] === 0 && st === null) st = e[0]; else if (e[1] === 1 && st !== null) { act.push([st, e[0]]); st = null; } } if (st !== null) act.push([st, Infinity]);
+  const samp = []; for (const e of o.clk) if (e[0] > 0 || e[1] !== cpol) { const lead = e[1] !== cpol; if (lead === !cpha) samp.push(e[0]); }
+  for (const [a, b] of act) { const times = samp.filter(t => t >= a && t < b); const mo = [], mi = []; let vo = 0, vi = 0, n = 0; const spans = [];
+    for (const t of times) { vo = (vo << 1) | lvAt(o.mosi, t); vi = (vi << 1) | lvAt(o.miso || [], t); n++; if (n === nb) { mo.push(vo & 0xFF); mi.push(vi & 0xFF); spans.push({ t0: times[times.length > 0 ? times.indexOf(t) - nb + 1 : 0], t1: t }); vo = vi = n = 0; } }
+    out.push({ t0: a, t1: isFinite(b) ? b : (times.length ? times[times.length - 1] : a), mosi: mo, miso: mi, spans, partial: n }); }
+  return out;
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* models_frames.js — générateurs de trames (UART, RS-485/Modbus, I²C, SPI) et analyseur logique 8 voies */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const { El, MODELS, PROTO: P } = NS;
+
+/* ---- générateur de trames : sources de Thévenin pilotées par un échéancier d'événements ---- */
+const KINDS = {
+  uart: { lines: ['TX'], pins: [0], gnd: 1, od: false },
+  rs485: { lines: ['A', 'B'], pins: [0, 1], gnd: 2, od: false },
+  i2c: { lines: ['SCL', 'SDA'], pins: [0, 1], gnd: 2, od: true },
+  spi: { lines: ['CS', 'SCK', 'MOSI', 'MISO'], pins: [0, 1, 2, 3], gnd: 4, od: false },
+};
+class FrameGen extends El {
+  constructor(i, p, kind) { super(i, p); this.kind = kind; this.k = KINDS[kind]; this.sched = null; this.key = ''; }
+  build() {
+    const p = this.p, k = JSON.stringify(p); if (k === this.key) return; this.key = k;
+    const s = this.sched = P[this.kind === 'rs485' ? 'rs485' : this.kind](p); const bp = new Set();
+    for (const n in s.lines) s.lines[n].forEach(e => { if (e[0] > 0) bp.add(e[0]); }); this.bp = Array.from(bp).sort((a, b) => a - b); this.idx = {};
+  }
+  wrap(t) { const pr = this.sched.period; let m = ((t % pr) + pr) % pr; if (pr - m < 1e-9) m = 0; return m; }
+  levelOf(name, tm) { return P.lvAt(this.sched.lines[name], tm + 1e-12); }
+  volts(name, lv) { const p = this.p;
+    if (this.kind === 'rs485') { const vcm = 2.5, vod = 1.2; return vcm + (lv ? -vod : vod); }   // B porte déjà le niveau complémentaire de A
+    if (this.kind === 'uart' && p.level === 'rs232') return lv ? -p.vrs : p.vrs;
+    return lv ? p.vhi : 0; }
+  beginStep(eng, h, t1) {
+    this.build(); const on = this.p.on !== false && this.fault !== 'dead'; this.t1 = t1; const tm = this.wrap(t1);
+    const st = this.k.lines.map(n => on ? this.levelOf(n, tm) : 1); this.st = st; this.tm = tm;
+    if (this.k.od) { const key = st.join(); if (key !== this.odKey) { this.odKey = key; this.ver++; } }
+    if (!!this.on !== on) { this.on = on; this.ver++; }
+  }
+  ro() { return this.kind === 'uart' ? (this.p.level === 'rs232' ? 300 : 50) : this.kind === 'rs485' ? 25 : 50; }
+  stampLin(eng) {
+    this.build(); const G = 1 / this.ro(), GND = this.ix[this.k.gnd];
+    this.k.lines.forEach((n, j) => { const node = this.ix[this.k.pins[j]];
+      if (!this.k.od) eng.cond(node, GND, this.on === false ? 1e-9 : G);
+      else { const lo = this.st && this.st[j] === 0 && this.on !== false; eng.cond(node, GND, lo ? 1 / 50 : 1e-9); if (this.p.pullup === '4k7') eng.cond(node, GND, 1 / 4700); } });
+  }
+  rhsLin(eng) {
+    if (this.on === false || !this.st) return; const GND = this.ix[this.k.gnd], G = 1 / this.ro();
+    this.k.lines.forEach((n, j) => { const node = this.ix[this.k.pins[j]];
+      if (!this.k.od) { const v = this.volts(n, this.st[j]); eng.rhs(node, G * v); eng.rhs(GND, -G * v); }
+      else if (this.p.pullup === '4k7') { eng.rhs(node, this.p.vhi / 4700); eng.rhs(GND, -this.p.vhi / 4700); } });
+  }
+  accept(eng, dt) {
+    if (!this.sched || this.on === false) return;
+    const tm = this.wrap(eng.t); let nx = this.sched.period - tm; const bp = this.bp;
+    let lo = 0, hi = bp.length; while (lo < hi) { const m = (lo + hi) >> 1; if (bp[m] <= tm + 1e-12) lo = m + 1; else hi = m; } if (lo < bp.length) nx = Math.min(nx, bp[lo] - tm);
+    if (nx > 1e-12 && nx < eng.dtCap) eng.dtCap = nx;                                  // le pas suivant se termine exactement sur le prochain front
+    this.V = this.st ? this.st.map((s, j) => this.volts(this.k.lines[j], s)) : [];
+  }
+}
+['uart', 'rs485', 'i2c', 'spi'].forEach(k => MODELS['fg_' + k] = (i, p) => new FrameGen(i, p, k));
+
+/* ---- analyseur logique : enregistre les 8 tensions (échantillons à chaque variation) ---- */
+class LogicAn extends El {
+  constructor(i, p) { super(i, p); }
+  stampLin(eng) { const gnd = this.ix[8]; for (let k = 0; k < 8; k++) eng.cond(this.ix[k], gnd, 1e-6); }     // 1 MΩ par voie
+  accept(eng, dt) {
+    const s = this.s; if (!s.ring) { s.ring = new NS.Ring(1 << 15, 8); s.last = null; s.tl = -1; }
+    const gnd = eng.v(this.ix[8]), v = []; for (let k = 0; k < 8; k++) v.push(eng.v(this.ix[k]) - gnd);
+    let push = s.last === null || eng.t - s.tl > 0.02; if (!push) for (let k = 0; k < 8; k++) if (Math.abs(v[k] - s.last[k]) > 0.04) { push = true; break; }
+    if (push) { s.ring.push(eng.t, v); s.last = v; s.tl = eng.t; }
+  }
+}
+MODELS.logic = (i, p) => new LogicAn(i, p);
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 /* parts.js — catalogue des composants : broches, paramètres (valeurs de fiches techniques), symboles (norme NF/IEC) */
 (function (g) {
 'use strict';
 const NS = g.NS = g.NS || {};
 const { VT } = NS;
 const PARTS = NS.PARTS = {};
-const CATS = NS.CATS = ['Sources & alimentation', 'Passifs', 'Semi-conducteurs', 'Commande & protection', 'Instruments', 'Divers'];
+const CATS = NS.CATS = ['Sources & alimentation', 'Passifs', 'Semi-conducteurs', 'Commande & protection', 'Circuits intégrés & logique', 'Instruments', 'Divers'];
 const P2 = [{ n: 'A', x: -40, y: 0 }, { n: 'B', x: 40, y: 0 }];
 const L = (x1, y1, x2, y2, c) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"${c ? ' class="' + c + '"' : ''}/>`;
 const lead2 = a => L(-40, 0, -a, 0) + L(a, 0, 40, 0);
@@ -943,12 +1370,13 @@ const REGS = {
 };
 function tr(VA, Vn, name) { const reg = 0.2, Vs = Vn * (1 + reg), n = Vs / 230, Is = VA / Vn, Rt = reg * Vn / Is; return { Vp: 230, Vs, VA, Rs: Rt / 2, Rp: Rt / 2 / (n * n), Lp: 40 + VA * 0.8, k: 0.998, name }; }
 const TRAFOS = { '230V / 6V · 3 VA': tr(3, 6, '230V / 6V · 3 VA'), '230V / 9V · 5 VA': tr(5, 9, '230V / 9V · 5 VA'), '230V / 12V · 10 VA': tr(10, 12, '230V / 12V · 10 VA'), '230V / 24V · 20 VA': tr(20, 24, '230V / 24V · 20 VA') };
-NS.LIB = { DIODES, LEDS, ZEN, BJTS, OPS, REGS, TRAFOS };
+NS.LIB = Object.assign(NS.LIB || {}, { DIODES, LEDS, ZEN, BJTS, OPS, REGS, TRAFOS });
 const opts = o => Object.keys(o);
 
 function def(type, d) { d.type = type; PARTS[type] = d; return d; }
 const num = (k, label, unit, o) => Object.assign({ k, label, unit, kind: 'num' }, o || {});
 const sel = (k, label, o, labels) => ({ k, label, kind: 'sel', opts: o, labels });
+NS.PD = { def, L, T, sel, num, opts, lead2 };
 
 /* ======================== SOURCES ======================== */
 def('psu', {
@@ -1079,19 +1507,19 @@ def('lamp', {
 /* ======================== INSTRUMENTS ======================== */
 def('multimeter', {
   ext: [-50,-62,50,62],
-  label: 'Multimètre numérique', cat: 4, ref: 'MM', pins: [{ n: 'V/Ω/A', x: -20, y: 80, c: 'r' }, { n: 'COM', x: 20, y: 80, c: 'k' }], defaults: { mode: 'VDC' },
+  label: 'Multimètre numérique', cat: 5, ref: 'MM', pins: [{ n: 'V/Ω/A', x: -20, y: 80, c: 'r' }, { n: 'COM', x: 20, y: 80, c: 'k' }], defaults: { mode: 'VDC' },
   fields: [sel('mode', 'Fonction', ['VDC', 'VAC', 'mA', 'A', 'Ohm', 'Diode', 'Cont'], ['V ⎓ (continu)', 'V ∿ (alternatif)', 'mA ⎓', 'A ⎓ (10 A)', 'Ω (ohmmètre)', 'Test diode', 'Continuité'])], eff: p => p, w: 110, h: 170, body: true,
   symbol: i => `<rect x="-50" y="-62" width="100" height="124" rx="8" class="inst mm"/><rect x="-40" y="-52" width="80" height="30" rx="3" class="lcd"/><text class="mm-read" x="36" y="-31" text-anchor="end">----</text>` + `<circle cx="0" cy="18" r="20" class="dial"/>` + L(0, 18, 0, -0, 'thick') + L(-20, 62, -20, 80) + L(20, 62, 20, 80) + T(-20, 54, 'V/Ω/A', 'sym-xs') + T(20, 54, 'COM', 'sym-xs'),
 });
 def('scope', {
   ext: [-80,-62,80,62],
-  label: 'Oscilloscope 2 voies', cat: 4, ref: 'OSC', pins: [{ n: 'CH1', x: -40, y: 80, c: 'y' }, { n: 'CH2', x: 0, y: 80, c: 'c' }, { n: 'GND', x: 40, y: 80, c: 'k' }],
+  label: 'Oscilloscope 2 voies', cat: 5, ref: 'OSC', pins: [{ n: 'CH1', x: -40, y: 80, c: 'y' }, { n: 'CH2', x: 0, y: 80, c: 'c' }, { n: 'GND', x: 40, y: 80, c: 'k' }],
   defaults: { tdiv: 5e-3, v1: 1, v2: 1, c1: 'DC', c2: 'DC', trig: 0, edge: 'up', src: 1, pos1: 0, pos2: 0, on1: true, on2: false, run: true, tpos: 1 }, fields: [], eff: p => p, w: 190, h: 170, body: true,
   symbol: i => `<rect x="-80" y="-62" width="160" height="124" rx="8" class="inst"/><rect x="-70" y="-52" width="100" height="80" rx="3" class="lcd"/><g class="sym-f" stroke="#55cc77" opacity=".6"><path d="M-62 -12 q12 -26 24 0 t24 0 t24 0"/></g>` + L(-40, 62, -40, 80) + L(0, 62, 0, 80) + L(40, 62, 40, 80) + T(-40, 54, 'CH1', 'sym-xs') + T(0, 54, 'CH2', 'sym-xs') + T(40, 54, 'GND', 'sym-xs') + `<circle cx="52" cy="-30" r="9" class="dial"/><circle cx="52" cy="0" r="9" class="dial"/>`,
 });
 def('ground', {
   ext: [-14,0,14,24],
-  label: 'Masse (0 V)', cat: 5, ref: 'GND', pins: [{ n: 'G', x: 0, y: 0 }], defaults: {}, fields: [], eff: p => p, noLabel: true,
+  label: 'Masse (0 V)', cat: 6, ref: 'GND', pins: [{ n: 'G', x: 0, y: 0 }], defaults: {}, fields: [], eff: p => p, noLabel: true,
   symbol: i => L(0, 0, 0, 12) + L(-14, 12, 14, 12, 'thick') + L(-9, 18, 9, 18, 'thick') + L(-4, 24, 4, 24, 'thick'),
 });
 /* valeurs de départ des paramètres */
@@ -1101,6 +1529,128 @@ NS.newInst = function (type, x, y, id) {
   return inst;
 };
 NS._pid = 0;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* parts_ic.js — catalogue : circuits intégrés (logique, NE555), optocoupleur, MOSFET */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const { def, L, T, sel, num, opts } = NS.PD; const { LFAM, LIB } = NS; const CAT = NS.CATS.indexOf('Circuits intégrés & logique'), SEMI = 2;
+const famF = sel('fam', 'Famille logique', Object.keys(LFAM), Object.keys(LFAM).map(k => LFAM[k].name));
+const lv = c => `<circle class="lv" data-lv="${c[0]}" cx="${c[1]}" cy="${c[2]}" r="4"/>`;
+const body = (x1, y1, x2, y2) => `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="3" class="inst"/>`;
+const GFN = ['AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR'], GSYM = { AND: '&', NAND: '&', OR: '≥1', NOR: '≥1', XOR: '=1', XNOR: '=1' }, GNEG = { NAND: 1, NOR: 1, XNOR: 1 };
+const GCHIP = { HC: { AND: '74HC08', NAND: '74HC00', OR: '74HC32', NOR: '74HC02', XOR: '74HC86', XNOR: '74HC7266' }, LS: { AND: '74LS08', NAND: '74LS00', OR: '74LS32', NOR: '74LS02', XOR: '74LS86', XNOR: '74LS266' }, CD: { AND: 'CD4081', NAND: 'CD4011', OR: 'CD4071', NOR: 'CD4001', XOR: 'CD4070', XNOR: 'CD4077' } };
+
+def('gate', {
+  ext: [-40, -40, 60, 40], label: 'Porte logique 2 entrées (AND, NAND, OR, NOR, XOR…)', cat: CAT, ref: 'U',
+  pins: [{ n: 'A', x: -60, y: -20 }, { n: 'B', x: -60, y: 20 }, { n: 'Y', x: 60, y: 0 }, { n: 'VCC', x: 0, y: -40, c: 'r' }, { n: 'GND', x: 0, y: 40, c: 'k' }],
+  defaults: { fn: 'NAND', fam: 'HC' }, fields: [sel('fn', 'Fonction', GFN, GFN.map(k => k + ' — ' + GCHIP.HC[k])), famF], eff: p => Object.assign({}, p), faults: ['stuck0', 'stuck1', 'dead'],
+  symbol: i => { const neg = GNEG[i.p.fn]; return body(-40, -40, 40, 40) + L(-60, -20, -40, -20) + L(-60, 20, -40, 20) + L(neg ? 48 : 40, 0, 60, 0) + (neg ? `<circle cx="44" cy="0" r="4" class="sym-c"/>` : '') + T(0, 6, GSYM[i.p.fn] || '&', 'sym-s') + T(0, -28, 'VCC', 'sym-xs') + T(0, 36, 'GND', 'sym-xs') + T(-36, -24, 'A', 'sym-xs', 'start') + T(-36, 24, 'B', 'sym-xs', 'start') + T(2, 20, (GCHIP[i.p.fam] || GCHIP.HC)[i.p.fn], 'sym-xs') + lv(['out', 28, 0]).replace('cx="28"', 'cx="30"'); },
+});
+const IFN = ['NOT', 'BUF', 'SCHMITT'];
+def('inv', {
+  ext: [-40, -40, 60, 40], label: 'Inverseur / buffer / trigger de Schmitt', cat: CAT, ref: 'U',
+  pins: [{ n: 'A', x: -60, y: 0 }, { n: 'Y', x: 60, y: 0 }, { n: 'VCC', x: 0, y: -40, c: 'r' }, { n: 'GND', x: 0, y: 40, c: 'k' }],
+  defaults: { fn: 'NOT', fam: 'HC' }, fields: [sel('fn', 'Fonction', IFN, ['NOT (74xx04)', 'Buffer (74xx34)', 'NOT à trigger de Schmitt (74xx14)']), famF], eff: p => Object.assign({}, p), faults: ['stuck0', 'stuck1', 'dead'],
+  symbol: i => { const neg = i.p.fn !== 'BUF'; return body(-40, -40, 40, 40) + L(-60, 0, -40, 0) + L(neg ? 48 : 40, 0, 60, 0) + (neg ? `<circle cx="44" cy="0" r="4" class="sym-c"/>` : '') + T(-2, 5, '1', 'sym-s') + (i.p.fn === 'SCHMITT' ? `<path d="M-14 -20 h12 v10 h-12 z" class="sym-f" transform="translate(14,-4) scale(.7)"/>` : '') + T(0, -28, 'VCC', 'sym-xs') + T(0, 36, 'GND', 'sym-xs') + lv(['out', 30, -14]); },
+});
+def('dff', {
+  ext: [-40, -60, 60, 60], label: 'Bascule D (74xx74)', cat: CAT, ref: 'U',
+  pins: [{ n: 'D', x: -60, y: -20 }, { n: 'CK', x: -60, y: 20 }, { n: 'S̅', x: -20, y: -60 }, { n: 'R̅', x: -20, y: 60 }, { n: 'Q', x: 60, y: -20 }, { n: 'Q̅', x: 60, y: 20 }, { n: 'VCC', x: 20, y: -60, c: 'r' }, { n: 'GND', x: 20, y: 60, c: 'k' }],
+  defaults: { fam: 'HC' }, fields: [famF], eff: p => Object.assign({}, p), faults: ['dead'],
+  symbol: i => body(-40, -60, 40, 60) + L(-60, -20, -40, -20) + L(-60, 20, -40, 20) + `<polyline points="-40,12 -30,20 -40,28" class="sym-f"/>` + L(-20, -60, -20, -50) + L(-20, 60, -20, 50) + L(20, -60, 20, -50) + L(20, 60, 20, 50) + L(40, -20, 60, -20) + L(40, 20, 60, 20) +
+    T(-34, -16, 'D', 'sym-xs', 'start') + T(34, -16, 'Q', 'sym-xs', 'end') + T(34, 24, 'Q̅', 'sym-xs', 'end') + T(-20, -42, 'S̅', 'sym-xs') + T(-20, 52, 'R̅', 'sym-xs') + T(20, -42, 'VCC', 'sym-xs') + T(20, 52, 'GND', 'sym-xs') + T(0, 4, '74xx74', 'sym-xs') + lv(['q', 26, -20]) + lv(['q2', 26, 20]),
+});
+def('cnt4', {
+  ext: [-40, -80, 60, 80], label: 'Compteur binaire 4 bits (74xx161 simplifié)', cat: CAT, ref: 'U',
+  pins: [{ n: 'CK', x: -60, y: -20 }, { n: 'MR', x: -60, y: 20 }, { n: 'Q0', x: 60, y: -60 }, { n: 'Q1', x: 60, y: -20 }, { n: 'Q2', x: 60, y: 20 }, { n: 'Q3', x: 60, y: 60 }, { n: 'VCC', x: 0, y: -80, c: 'r' }, { n: 'GND', x: 0, y: 80, c: 'k' }],
+  defaults: { fam: 'HC' }, fields: [famF], eff: p => Object.assign({}, p), faults: ['dead'],
+  symbol: i => body(-40, -80, 40, 80) + L(-60, -20, -40, -20) + L(-60, 20, -40, 20) + `<polyline points="-40,-28 -30,-20 -40,-12" class="sym-f"/>` + [-60, -20, 20, 60].map((y, k) => L(40, y, 60, y) + T(34, y + 4, 'Q' + k, 'sym-xs', 'end') + lv(['q' + (k ? k + 1 : ''), 22, y])).join('') + T(-34, -16, 'CK', 'sym-xs', 'start') + T(-34, 24, 'MR', 'sym-xs', 'start') + T(0, -66, 'VCC', 'sym-xs') + T(0, 74, 'GND', 'sym-xs') + T(0, 4, 'CTR 4', 'sym-s'),
+});
+/* le compteur : Q0 = s.q, Q1 = s.q2 … */
+def('timer555', {
+  ext: [-40, -60, 60, 60], label: 'NE555 / TLC555 (temporisateur)', cat: CAT, ref: 'U',
+  pins: [{ n: 'GND', x: 0, y: 60, c: 'k' }, { n: 'TRIG', x: -60, y: -40 }, { n: 'OUT', x: 60, y: -40 }, { n: 'RESET', x: 20, y: -60 }, { n: 'CTRL', x: -60, y: 0 }, { n: 'THR', x: -60, y: 40 }, { n: 'DIS', x: 60, y: 40 }, { n: 'VCC', x: -20, y: -60, c: 'r' }],
+  defaults: { model: 'NE555' }, fields: [sel('model', 'Référence', Object.keys(LIB.T555), Object.keys(LIB.T555).map(k => LIB.T555[k].name))], eff: p => Object.assign({}, LIB.T555[p.model] || LIB.T555.NE555, { model: p.model }), faults: ['dead'],
+  symbol: i => body(-40, -60, 40, 60) + L(-60, -40, -40, -40) + L(-60, 0, -40, 0) + L(-60, 40, -40, 40) + L(40, -40, 60, -40) + L(40, 40, 60, 40) + L(-20, -60, -20, -50) + L(20, -60, 20, -50) + L(0, 60, 0, 50) +
+    T(-36, -36, 'TRIG 2', 'sym-xs', 'start') + T(-36, 4, 'CTRL 5', 'sym-xs', 'start') + T(-36, 44, 'THR 6', 'sym-xs', 'start') + T(36, -36, '3 OUT', 'sym-xs', 'end') + T(36, 44, '7 DIS', 'sym-xs', 'end') + T(-20, -42, '8', 'sym-xs') + T(20, -42, 'R 4', 'sym-xs') + T(0, 46, 'GND 1', 'sym-xs') + T(0, 4, i.p.model, 'sym-s') + lv(['out', 26, -40]),
+});
+def('opto', {
+  ext: [-40, -40, 40, 40], label: 'Optocoupleur (PC817, 4N25)', cat: SEMI, ref: 'OC',
+  pins: [{ n: 'A', x: -60, y: -20 }, { n: 'K', x: -60, y: 20 }, { n: 'C', x: 60, y: -20 }, { n: 'E', x: 60, y: 20 }],
+  defaults: { model: 'PC817' }, fields: [sel('model', 'Référence', Object.keys(LIB.OPTOS), Object.keys(LIB.OPTOS).map(k => LIB.OPTOS[k].name))], eff: p => Object.assign({}, LIB.OPTOS[p.model] || LIB.OPTOS.PC817), faults: ['ledOpen', 'phOpen'],
+  symbol: i => body(-40, -40, 40, 40) + L(-60, -20, -40, -20) + L(-60, 20, -40, 20) + L(40, -20, 60, -20) + L(40, 20, 60, 20) +
+    L(-40, -20, -24, -20) + L(-24, -20, -24, -8) + `<polygon points="-32,-8 -16,-8 -24,8" class="sym-b2"/>` + L(-32, 8, -16, 8, 'thick') + L(-24, 8, -24, 20) + L(-24, 20, -40, 20) +
+    `<line x1="0" y1="-36" x2="0" y2="36" class="sym-dash"/>` + `<g class="sym-f"><line x1="-10" y1="-6" x2="6" y2="-6"/><polyline points="2,-10 6,-6 2,-2"/><line x1="-10" y1="6" x2="6" y2="6"/><polyline points="2,2 6,6 2,10"/></g>` +
+    L(14, -12, 14, 12, 'thick') + L(14, -6, 40, -20) + L(14, 6, 40, 20) + `<polygon points="40,20 32,17 34,12" class="sym-fill"/>` + T(0, -30, i.p.model, 'sym-xs'),
+});
+const MP = Object.keys(LIB.MOSFETS);
+def('mosfet', {
+  ext: [-40, -40, 26, 40], label: 'Transistor MOSFET (N / P)', cat: SEMI, ref: 'Q', pins: [{ n: 'G', x: -40, y: 0 }, { n: 'D', x: 20, y: -40 }, { n: 'S', x: 20, y: 40 }],
+  defaults: { model: '2N7000' }, fields: [sel('model', 'Référence', MP, MP.map(k => LIB.MOSFETS[k].name))], eff: p => Object.assign({}, LIB.MOSFETS[p.model] || LIB.MOSFETS['2N7000']), faults: ['ds', 'open', 'gs'],
+  symbol: i => { const pch = (LIB.MOSFETS[i.p.model] || {}).pch; return L(-40, 0, -14, 0) + L(-14, -16, -14, 16, 'thick') + L(-8, -18, -8, -8, 'thick') + L(-8, -4, -8, 4, 'thick') + L(-8, 8, -8, 18, 'thick') + L(-8, -13, 20, -13) + L(20, -13, 20, -40) + L(-8, 13, 20, 13) + L(20, 13, 20, 40) + L(-8, 0, 20, 0) + L(20, 0, 20, 13) +
+    (pch ? `<polygon points="12,0 4,-4 4,4" class="sym-fill"/>` : `<polygon points="-8,0 0,-4 0,4" class="sym-fill"/>`) + T(34, 4, i.p.model, 'sym-xs', 'start'); },
+});
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* parts_frames.js — générateurs de trames et analyseur logique */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const { def, L, T, sel, num } = NS.PD;
+const txt = (k, label) => ({ k, label, kind: 'text' });
+const bool = (k, label) => ({ k, label, kind: 'bool' });
+const BAUDS = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+const baud = sel('baud', 'Débit', BAUDS, BAUDS.map(b => b + ' bauds'));
+const box = (x1, y1, x2, y2, title, sub) => `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="5" class="inst"/>` + T((x1 + x2) / 2, y1 + 14, title, 'sym-s') + (sub ? T((x1 + x2) / 2, y1 + 27, sub, 'sym-xs') : '');
+const wave = (x, y) => `<g class="sym-f" stroke="#2563eb"><path d="M${x} ${y} h6 v-10 h8 v10 h6 v-10 h10 v10 h6"/></g>`;
+const FRAME_FAULTS = ['dead'];
+def('fg_uart', {
+  ext: [-50, -40, 50, 40], label: 'Émetteur série UART / RS-232', cat: 0, ref: 'TX', pins: [{ n: 'TX', x: 60, y: -20 }, { n: 'GND', x: 60, y: 20, c: 'k' }],
+  defaults: { on: true, baud: 9600, bits: 8, parity: 'N', stop: 1, level: 'ttl', vhi: 5, vrs: 12, polarity: 'norm', msg: 'Bonjour\\r\\n', every: 0.1, gap: 0, hidden: false },
+  fields: [bool('on', 'Émission active'), baud, sel('bits', 'Bits de données', [7, 8], ['7', '8']), sel('parity', 'Parité', ['N', 'E', 'O'], ['Aucune', 'Paire', 'Impaire']), sel('stop', 'Bits de stop', [1, 2], ['1', '2']),
+    sel('level', 'Niveaux', ['ttl', 'rs232'], ['TTL / CMOS (0–5 V)', 'RS-232 (±12 V, logique inversée)']), sel('vhi', 'Tension TTL', [3.3, 5], ['3,3 V', '5 V']), txt('msg', 'Message (\\r \\n \\xNN)'), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
+  eff: p => p, faults: FRAME_FAULTS,
+  symbol: i => box(-50, -40, 50, 40, 'UART', i.p.baud + ' bd') + wave(-18, 22) + L(50, -20, 60, -20) + L(50, 20, 60, 20) + T(40, -16, 'TX', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+});
+def('fg_rs485', {
+  ext: [-50, -50, 50, 50], label: 'Nœud RS-485 / Modbus RTU (maître + esclave)', cat: 0, ref: 'MB', pins: [{ n: 'A', x: 60, y: -20 }, { n: 'B', x: 60, y: 0 }, { n: 'GND', x: 60, y: 20, c: 'k' }],
+  defaults: { on: true, baud: 9600, parity: 'E', stop: 1, addr: 1, func: 3, reg: 0, qty: 2, regs: '230, 1013, 45, 12', delay: 0.004, corrupt: false, every: 0.3, hidden: false },
+  fields: [bool('on', 'Bus actif'), baud, sel('parity', 'Parité', ['N', 'E', 'O'], ['Aucune (2 stops)', 'Paire (8E1)', 'Impaire']), sel('stop', 'Bits de stop', [1, 2], ['1', '2']), num('addr', 'Adresse esclave', '', { min: 1, max: 247 }), sel('func', 'Fonction', [3, 6], ['03 — Lire registres', '06 — Écrire un registre']),
+    num('reg', 'Adresse du registre', '', { min: 0, max: 65535 }), num('qty', 'Quantité / valeur', '', { min: 0, max: 65535 }), txt('regs', 'Table de registres de l\'esclave'), num('delay', 'Délai de réponse', 's', { min: 0.001, max: 0.5 }), bool('corrupt', 'Réponse au CRC corrompu (défaut de ligne)'), num('every', 'Répétition', 's', { min: 0.05, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
+  eff: p => p, faults: FRAME_FAULTS,
+  symbol: i => box(-50, -50, 50, 50, 'RS-485', 'Modbus RTU') + wave(-18, 30) + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'A', 'sym-xs', 'end') + T(40, 4, 'B', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+});
+def('fg_i2c', {
+  ext: [-50, -50, 50, 50], label: 'Maître / esclave I²C', cat: 0, ref: 'I2C', pins: [{ n: 'SCL', x: 60, y: -20 }, { n: 'SDA', x: 60, y: 0 }, { n: 'GND', x: 60, y: 20, c: 'k' }],
+  defaults: { on: true, freq: 100000, addr: 0x48, rw: 'W', data: '01 A5', ack: 'oui', pullup: 'none', vhi: 3.3, every: 0.05, hidden: false },
+  fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCL', [100000, 400000], ['100 kHz (standard)', '400 kHz (rapide)']), num('addr', 'Adresse 7 bits (décimal)', '', { min: 0, max: 127 }), sel('rw', 'Sens', ['W', 'R'], ['Écriture', 'Lecture']), txt('data', 'Octets (hexa)'), sel('ack', 'Esclave présent (ACK)', ['oui', 'non'], ['Oui', 'Non (NACK)']),
+    sel('pullup', 'Résistances de rappel', ['none', '4k7'], ['Externes (à câbler)', 'Internes 4,7 kΩ']), sel('vhi', 'Tension du bus', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
+  eff: p => Object.assign({}, p, { ack: p.ack !== 'non' }), faults: FRAME_FAULTS,
+  symbol: i => box(-50, -50, 50, 50, 'I²C', (i.p.freq / 1000) + ' kHz') + `<g class="sym-f" stroke="#2563eb"><path d="M-30 14 h10 v-8 h10 v8 h10 v-8 h10"/><path d="M-30 30 h6 v-8 h22 v8 h12"/></g>` + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'SCL', 'sym-xs', 'end') + T(40, 4, 'SDA', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+});
+def('fg_spi', {
+  ext: [-50, -60, 50, 60], label: 'Maître / esclave SPI', cat: 0, ref: 'SPI', pins: [{ n: 'CS', x: 60, y: -40 }, { n: 'SCK', x: 60, y: -20 }, { n: 'MOSI', x: 60, y: 0 }, { n: 'MISO', x: 60, y: 20 }, { n: 'GND', x: 60, y: 40, c: 'k' }],
+  defaults: { on: true, freq: 100000, mode: 0, data: 'A5 3C 00', reply: '', vhi: 3.3, every: 0.05, hidden: false },
+  fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCK', [10000, 100000, 1000000, 4000000], ['10 kHz', '100 kHz', '1 MHz', '4 MHz']), sel('mode', 'Mode SPI (CPOL/CPHA)', [0, 1, 2, 3], ['0 (0,0)', '1 (0,1)', '2 (1,0)', '3 (1,1)']), txt('data', 'Octets MOSI (hexa)'), txt('reply', 'Octets MISO (hexa, vide = ~MOSI)'),
+    sel('vhi', 'Tension', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
+  eff: p => p, faults: FRAME_FAULTS,
+  symbol: i => box(-50, -60, 50, 60, 'SPI', 'mode ' + i.p.mode) + wave(-18, 40) + [-40, -20, 0, 20, 40].map(y => L(50, y, 60, y)).join('') + T(40, -36, 'CS', 'sym-xs', 'end') + T(40, -16, 'SCK', 'sym-xs', 'end') + T(40, 4, 'MOSI', 'sym-xs', 'end') + T(40, 24, 'MISO', 'sym-xs', 'end') + T(40, 44, 'GND', 'sym-xs', 'end'),
+});
+const CAT_I = NS.CATS.indexOf('Instruments');
+def('logic', {
+  ext: [-100, -52, 100, 52], label: 'Analyseur logique 8 voies (décodeur UART, Modbus, I²C, SPI)', cat: CAT_I, ref: 'LA',
+  pins: [0, 1, 2, 3, 4, 5, 6, 7].map(k => ({ n: 'D' + k, x: -80 + 20 * k, y: 80, c: ['k', 'r', 'o', 'y', 'g', 'b', 'v', 'w'][k] })).concat([{ n: 'GND', x: 80, y: 80, c: 'k' }]),
+  defaults: { tdiv: 1e-3, pos: 0, run: true, thr: 1.65, trigCh: -1, edge: 'down', proto: 'none', chA: 0, chB: 1, chC: 2, chD: 3, baud: 9600, bits: 8, parity: 'N', stop: 1, inv: false, diff: false, mode: 0 },
+  fields: [], eff: p => p, w: 220, h: 170, body: true,
+  symbol: i => `<rect x="-100" y="-52" width="200" height="104" rx="8" class="inst"/><rect x="-90" y="-42" width="130" height="68" rx="3" class="lcd"/><g class="sym-f" stroke="#2f855a"><path d="M-84 -34 h14 v8 h12 v-8 h18 v8 h10 v-8 h14"/><path d="M-84 -14 h8 v8 h20 v-8 h12 v8 h22"/></g>` +
+    [0, 1, 2, 3, 4, 5, 6, 7].map(k => L(-80 + 20 * k, 52, -80 + 20 * k, 80) + T(-80 + 20 * k, 46, 'D' + k, 'sym-xs')).join('') + L(80, 52, 80, 80) + T(80, 46, 'GND', 'sym-xs') + T(70, -26, 'LOGIC', 'sym-s') + T(70, -14, 'ANALYZER', 'sym-xs'),
+});
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -1345,6 +1895,7 @@ class Editor {
         const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; const gl = e.querySelector(p.type === 'led' ? '.led-glow' : '.lamp-glow');
         if (gl) { let o = 0; if (el && !p.burnt) o = p.type === 'led' ? Math.min(1, Math.max(0, (el.I || 0) / 0.012)) : (el.bright || 0); gl.setAttribute('opacity', (o * 0.85).toFixed(2)); }
       }
+      { const lvs = e.querySelectorAll('[data-lv]'); if (lvs.length) { const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; lvs.forEach(n => { const v = el && el.s && el.s.on ? el.s[n.dataset.lv] : null; n.style.fill = v === null ? '#cbd5e1' : v ? '#22c55e' : '#334155'; }); } }
       this.heatUpdate(p, e);
       if (p.type === 'multimeter') { const t = e.querySelector('.mm-read'); if (t && !sim.dirty) { const r = this.app.instr.reading(p); t.textContent = r.s + ' ' + r.u; } }
       if (p.type === 'psu') { const led = e.querySelector('.psu-led'); const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; if (led) led.style.fill = el && el.cc ? '#ef4444' : p.p.on ? '#22c55e' : '#6b7280'; }
@@ -1601,8 +2152,8 @@ class Instruments {
   constructor(app) { this.app = app; this.wins = new Map(); this.audio = null; }
   open(inst) {
     if (this.wins.has(inst.id)) { const w = this.wins.get(inst.id); w.el.style.zIndex = ++this.z || (this.z = 30); return; }
-    const mk = { multimeter: () => this.multimeter(inst), scope: () => this.scope(inst), psu: () => this.psu(inst), gbf: () => this.gbf(inst) }[inst.type]; if (!mk) return false;
-    const n = this.wins.size; const w = mk(); w.el.style.left = (window.innerWidth - 740 - n * 30) + 'px'; w.el.style.top = (110 + n * 30) + 'px'; w.el.style.zIndex = ++this.z || (this.z = 30);
+    const mk = { multimeter: () => this.multimeter(inst), scope: () => this.scope(inst), psu: () => this.psu(inst), gbf: () => this.gbf(inst), logic: () => this.logic(inst) }[inst.type]; if (!mk) return false;
+    const n = this.wins.size; const w = mk(); w.el.style.left = Math.max(0, window.innerWidth - (inst.type === 'logic' ? 810 : 740) - n * 30) + 'px'; w.el.style.top = (110 + n * 30) + 'px'; w.el.style.zIndex = ++this.z || (this.z = 30);
     $('#winlayer').appendChild(w.el); this.wins.set(inst.id, w); this.drag(w.el); return true;
   }
   closeAll() { for (const w of this.wins.values()) w.el.remove(); this.wins.clear(); this.beep(false); }
@@ -1765,6 +2316,135 @@ NS.Instruments = Instruments;
 
 </script>
 <script>
+/* instruments_logic.js — fenêtre de l'analyseur logique : chronogrammes 8 voies, curseurs, décodeurs UART / Modbus RTU / I²C / SPI */
+(function (g) {
+'use strict';
+const NS = g.NS = g.NS || {};
+const { h, fmt } = NS; const P = NS.PROTO; const I = NS.Instruments.prototype;
+const COL = ['#b45309', '#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7', '#e5e7eb'];
+const BAUDS = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+const TD = []; [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1].forEach(d => [1, 2, 5].forEach(m => TD.push(m * d))); TD.push(1, 2);
+const trim = s => s.indexOf('.') >= 0 ? s.replace(/\.?0+$/, '') : s;
+const tl = v => { const a = Math.abs(v); return a >= 1 ? trim(v.toPrecision(3)) + ' s' : a >= 1e-3 ? trim((v * 1e3).toPrecision(3)) + ' ms' : trim((v * 1e6).toPrecision(3)) + ' µs'; };
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+I.logic = function (inst) {
+  const app = this.app, p = inst.p; const W = 760, H = 372;
+  const cv = h('canvas', { width: W, height: H }); const dec = h('div.lgdec'); const info = h('div.lginfo');
+  const save = () => app.saveSoon();
+  const sel = (k, opts, f, num) => h('select', { onchange: e => { p[k] = num ? +e.target.value : e.target.value; save(); } }, opts.map(o => h('option', { value: o, selected: String(p[k]) === String(o) }, f ? f(o) : o)));
+  const nin = (k, step, min, max) => h('input', { type: 'number', step, min, max, value: p[k], onchange: e => { p[k] = +e.target.value; save(); } });
+  const chSel = (k, none) => h('select', { onchange: e => { p[k] = +e.target.value; save(); } }, (none ? [[-1, 'aucune']] : []).concat([0, 1, 2, 3, 4, 5, 6, 7].map(c => [c, 'D' + c])).map(([v, l]) => h('option', { value: v, selected: p[k] === v }, l)));
+  const chk = (k, l) => h('label', h('input', { type: 'checkbox', checked: !!p[k], onchange: e => { p[k] = e.target.checked; save(); } }), ' ' + l);
+  const runb = h('button', { title: 'RUN : défilement / déclenchement continu. STOP : fige la capture (copie) pour l\'analyser tranquillement.', onclick: () => { p.run = !p.run; save(); } });
+  const shift = d => h('button', { title: 'Décaler la fenêtre', onclick: () => { p.pos += d * p.tdiv * 5; save(); } }, d < 0 ? '◀' : '▶');
+  const protoBox = h('div.lgproto'); let lastProto = null;
+  const drawProto = () => {
+    protoBox.innerHTML = ''; const f = (l, el) => protoBox.append(h('label.lgf', l + ' ', el));
+    if (p.proto === 'uart') { f('RX', chSel('chA')); f('Débit', sel('baud', BAUDS, b => b + ' bd', true)); f('Données', sel('bits', [7, 8], null, true)); f('Parité', sel('parity', ['N', 'E', 'O'], x => ({ N: 'aucune', E: 'paire', O: 'impaire' }[x]))); f('Stop', sel('stop', [1, 2], null, true)); protoBox.append(chk('inv', 'Logique inversée (RS-232 ±12 V)'), h('button', { title: 'Estime le débit à partir de la plus courte impulsion mesurée', onclick: () => this.autoBaud(inst) }, 'Auto-débit')); }
+    else if (p.proto === 'modbus') { f('Ligne A', chSel('chA')); f('Ligne B', chSel('chB')); f('Débit', sel('baud', BAUDS, b => b + ' bd', true)); f('Parité', sel('parity', ['N', 'E', 'O'], x => ({ N: 'aucune', E: 'paire', O: 'impaire' }[x]))); f('Stop', sel('stop', [1, 2], null, true)); }
+    else if (p.proto === 'i2c') { f('SCL', chSel('chA')); f('SDA', chSel('chB')); }
+    else if (p.proto === 'spi') { f('CS', chSel('chA')); f('SCK', chSel('chB')); f('MOSI', chSel('chC')); f('MISO', chSel('chD')); f('Mode', sel('mode', [0, 1, 2, 3], m => m + ' (CPOL ' + ((m >> 1) & 1) + ', CPHA ' + (m & 1) + ')', true)); }
+    lastProto = p.proto;
+  };
+  const protoSel = h('select', { onchange: e => { p.proto = e.target.value; save(); drawProto(); } }, [['none', 'Aucun'], ['uart', 'UART / RS-232'], ['modbus', 'Modbus RTU (RS-485)'], ['i2c', 'I²C'], ['spi', 'SPI']].map(([v, l]) => h('option', { value: v, selected: p.proto === v }, l)));
+  drawProto();
+  const ctl = h('div.lgctl',
+    h('fieldset', h('legend', 'BASE DE TEMPS'), sel('tdiv', TD, v => tl(v) + '/div', true), h('div.lgrow', shift(-1), shift(1), h('button', { title: 'Revient à la fenêtre de base', onclick: () => { p.pos = 0; save(); } }, '⟲'), runb), h('button', { title: 'Choisit une base de temps adaptée à l\'activité détectée', onclick: () => this.logicAuto(inst) }, 'Auto')),
+    h('fieldset', h('legend', 'DÉCLENCHEMENT'), h('label', 'Voie ', chSel('trigCh', true)), sel('edge', ['down', 'up'], v => v === 'up' ? 'Front montant ↗' : 'Front descendant ↘')),
+    h('fieldset', h('legend', 'SEUIL LOGIQUE'), h('label', 'Seuil (V) ', nin('thr', 0.1, -30, 30)), h('div.small', '3,3 V/5 V : 1,65 V · RS-232 : 0 V')),
+    h('fieldset.lgwide', h('legend', 'DÉCODEUR'), h('label', 'Protocole ', protoSel), protoBox));
+  const body = h('div', cv, info, ctl, dec); const el = this.frame('Analyseur logique', 'lgwin', body, inst);
+  // curseurs de mesure (glisser sur le chronogramme)
+  const cur = { a: null, b: null, drag: false }; const xT = e => { const r = cv.getBoundingClientRect(); return ((e.clientX - r.left) / r.width * W - 44) / (W - 50); };
+  cv.addEventListener('pointerdown', e => { cur.a = xT(e); cur.b = cur.a; cur.drag = true; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => { if (cur.drag) cur.b = xT(e); });
+  cv.addEventListener('pointerup', () => { cur.drag = false; if (Math.abs(cur.a - cur.b) < 0.004) { cur.a = cur.b = null; } });
+  return { el, update: () => { if (p.proto !== lastProto) drawProto(); runb.textContent = p.run ? '▶ RUN' : '⏸ STOP'; this.drawLogic(inst, cv, info, dec, cur); } };
+};
+
+I.logicRing = function (inst) {
+  const el = this.app.sim.elOf.get(inst.id); const s = el && el.s; if (!s || !s.ring || s.ring.n < 2) return null;
+  let r = s.ring; if (!inst.p.run) { if (!s.frozen) { const f = new NS.Ring(r.cap, r.v.length); f.t.set(r.t); r.v.forEach((a, i) => f.v[i].set(a)); f.n = r.n; f.head = r.head; s.frozen = f; } r = s.frozen; } else s.frozen = null;
+  return { r, s };
+};
+I.logicEvents = function (inst, r, ch, ch2) { return P.ringEvents(r, ch, inst.p.thr, ch2); };
+I.logicAuto = function (inst) {
+  const o = this.logicRing(inst); if (!o) return; const p = inst.p; let tmin = Infinity, tmax = -Infinity, pw = Infinity;
+  for (let c = 0; c < 8; c++) { const ev = this.logicEvents(inst, o.r, c); for (let i = 1; i < ev.length; i++) { if (ev[i][0] > o.r.at(o.r.n - 1) - 0.5) { tmin = Math.min(tmin, ev[i][0]); tmax = Math.max(tmax, ev[i][0]); } if (i > 1) pw = Math.min(pw, ev[i][0] - ev[i - 1][0]); } }
+  if (!isFinite(tmin)) return; const span = Math.min(Math.max((tmax - tmin) * 1.3, pw * 12), 2); p.tdiv = TD.find(t => t * 10 >= span) || 2; p.pos = 0; p.run = true; this.app.saveSoon();
+};
+I.autoBaud = function (inst) {
+  const o = this.logicRing(inst); if (!o) return; const p = inst.p; let ev = this.logicEvents(inst, o.r, p.chA); let pw = Infinity; for (let i = 1; i < ev.length; i++) pw = Math.min(pw, ev[i][0] - ev[i - 1][0]); if (!isFinite(pw)) return;
+  const b = 1 / pw; p.baud = BAUDS.reduce((a, c) => Math.abs(Math.log(c / b)) < Math.abs(Math.log(a / b)) ? c : a); this.app.saveSoon();
+};
+/* décodage → { spans: [{ch, t0, t1, label, err}], html } */
+I.logicDecode = function (inst, r) {
+  const p = inst.p, spans = []; const sync = r.n >= r.cap; let html = ''; const ok = '<span style="color:#4ade80">', ko = '<span style="color:#f87171">';
+  const tEnd = r.at(r.n - 1);
+  if (p.proto === 'uart') {
+    let ev = this.logicEvents(inst, r, p.chA); if (p.inv) ev = P.invert(ev); const d = P.uartDecode(ev, { baud: p.baud, bits: p.bits, parity: p.parity, stop: p.stop, sync }, tEnd);
+    d.forEach(b => spans.push({ ch: p.chA, t0: b.t0, t1: b.t1, label: P.hex(b.byte) + ' ' + P.ascii(b.byte), err: b.err }));
+    const txt = d.map(b => b.err ? '⚠' : P.ascii(b.byte)).join(''); const nerr = d.filter(b => b.err).length;
+    html = '<b>UART ' + p.baud + ' bauds · ' + p.bits + (p.parity === 'N' ? 'N' : p.parity) + p.stop + '</b> — ' + d.length + ' octet(s) décodé(s)' + (nerr ? ' · ' + ko + nerr + ' erreur(s) (parité / trame) : débit ou format incorrect ?</span>' : ' · ' + ok + 'aucune erreur</span>') + '<div class="lgtxt">' + esc(txt.slice(-300)) + '</div>' +
+      '<div class="lghex">' + d.slice(-48).map(b => (b.err ? ko : '<span>') + P.hex(b.byte) + '</span>').join(' ') + '</div>';
+  } else if (p.proto === 'modbus') {
+    const ev = this.logicEvents(inst, r, p.chB, p.chA); const fr = P.modbusDecode(ev, { baud: p.baud, parity: p.parity, stop: p.stop, sync }, tEnd);
+    fr.forEach(f => { spans.push({ ch: p.chA, t0: f.t0, t1: f.t1, label: (f.ok ? '' : '✗ ') + 'trame ' + f.bytes.length + ' o', err: !f.ok || f.errs }); });
+    const by = P.uartDecode(ev, { baud: p.baud, bits: 8, parity: p.parity, stop: p.stop }, tEnd); by.forEach(b => spans.push({ ch: p.chB, t0: b.t0, t1: b.t1, label: P.hex(b.byte), err: b.err }));
+    html = '<b>Modbus RTU ' + p.baud + ' bauds</b> (logique 1 : A − B &lt; 0) — ' + fr.length + ' trame(s)' + fr.slice(-6).map(f => '<div class="lgfr">' + (f.ok ? ok + '✔ CRC ' + P.hex(f.crc, 4) : ko + '✗ CRC reçu ' + P.hex(f.crc || 0, 4) + ' ≠ calculé ' + P.hex(f.calc || 0, 4)) + '</span> · <span class="mono">' + f.bytes.map(b => P.hex(b)).join(' ') + '</span><br>' + esc(f.text) + (f.errs ? ' · ' + ko + 'erreur de format (parité/stop) sur ' + f.errs + ' octet(s)</span>' : '') + '</div>').join('');
+  } else if (p.proto === 'i2c') {
+    const tr = P.i2cDecode(this.logicEvents(inst, r, p.chA), this.logicEvents(inst, r, p.chB)); tr.forEach(t => (t.ev || []).forEach(e => spans.push({ ch: p.chB, t0: e.t0, t1: e.t1, label: e.label, err: /NACK|N$/.test(e.label) && e.kind === 'addr' }))); tr.forEach(t => { spans.push({ ch: p.chB, t0: t.t0 - 0, t1: t.t0, label: 'S', mark: true }); if (t.stop) spans.push({ ch: p.chB, t0: t.t1, t1: t.t1, label: 'P', mark: true }); });
+    html = '<b>I²C</b> — ' + tr.length + ' transaction(s)' + tr.slice(-6).map(t => '<div class="lgfr"><span class="mono">S ' + P.hex(t.addr || 0) + ' ' + (t.rw || '?') + ' ' + (t.ack ? ok + 'ACK</span>' : ko + 'NACK (pas d\'esclave ?)</span>') + ' ' + t.bytes.map(b => P.hex(b.v) + (b.ack ? '·A' : '·N')).join(' ') + (t.stop ? ' P' : ' …') + '</span><br>adresse 7 bits <b>0x' + P.hex(t.addr || 0) + '</b> (' + (t.addr || 0) + '), ' + (t.rw === 'R' ? 'lecture' : 'écriture') + ', ' + t.bytes.length + ' octet(s) de données</div>').join('');
+  } else if (p.proto === 'spi') {
+    const o = { cs: this.logicEvents(inst, r, p.chA), clk: this.logicEvents(inst, r, p.chB), mosi: this.logicEvents(inst, r, p.chC), miso: this.logicEvents(inst, r, p.chD) }; const tr = P.spiDecode(o, p.mode, 8);
+    tr.forEach(t => (t.spans || []).forEach((s, k) => { spans.push({ ch: p.chC, t0: s.t0, t1: s.t1, label: P.hex(t.mosi[k]) }); spans.push({ ch: p.chD, t0: s.t0, t1: s.t1, label: P.hex(t.miso[k]) }); }));
+    html = '<b>SPI mode ' + p.mode + '</b> — ' + tr.length + ' échange(s)' + tr.slice(-6).map(t => '<div class="lgfr"><span class="mono">MOSI : ' + t.mosi.map(b => P.hex(b)).join(' ') + '<br>MISO : ' + t.miso.map(b => P.hex(b)).join(' ') + '</span>' + (t.partial ? ' ' + ko + '(' + t.partial + ' bit(s) incomplet(s) — mauvais mode ?)</span>' : '') + '</div>').join('');
+  } else html = '<span class="muted">Choisissez un protocole pour décoder les trames. Sans décodeur : mesurez les durées avec les curseurs (glisser sur le chronogramme).</span>';
+  return { spans, html };
+};
+I.drawLogic = function (inst, cv, info, dec, cur) {
+  const p = inst.p, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, X0 = 44, PW = W - X0 - 6, rowH = 38, top = 6;
+  ctx.fillStyle = '#0b1410'; ctx.fillRect(0, 0, W, H); ctx.font = '11px monospace';
+  const o = this.logicRing(inst); const span = p.tdiv * 10;
+  ctx.strokeStyle = '#1d3a2a'; ctx.lineWidth = 1; for (let i = 0; i <= 10; i++) { const x = X0 + i * PW / 10; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + 8 * rowH); ctx.stroke(); }
+  for (let c = 0; c < 8; c++) { ctx.fillStyle = COL[c]; ctx.fillText('D' + c, 8, top + c * rowH + rowH / 2 + 4); ctx.strokeStyle = '#173024'; ctx.beginPath(); ctx.moveTo(X0, top + (c + 1) * rowH); ctx.lineTo(X0 + PW, top + (c + 1) * rowH); ctx.stroke(); }
+  if (!o) { ctx.fillStyle = '#6ee7a0'; ctx.font = '14px monospace'; ctx.fillText('Pas de signal — câblez D0…D7 et GND', 60, 40); info.textContent = ''; return; }
+  const { r, s } = o, tNow = r.at(r.n - 1); const EV = []; for (let c = 0; c < 8; c++) EV.push(this.logicEvents(inst, r, c));
+  // fenêtre : déclenchement (trame maintenue) ou défilement
+  if (p.run || s.vt0 === undefined) {
+    let t0 = tNow - span, held = false;
+    if (p.trigCh < 0) { let tLast = -1; for (const ev of EV) if (ev.length > 1 && ev[ev.length - 1][0] > tLast) tLast = ev[ev.length - 1][0]; if (tLast > 0 && tLast < tNow - span * 0.9) t0 = tLast - span * 0.9; }   // rien dans la fenêtre : on affiche la dernière activité
+    if (p.trigCh >= 0) { const ev = EV[p.trigCh]; const want = p.edge === 'up' ? 1 : 0; let te = null; for (let i = ev.length - 1; i >= 1; i--) if (ev[i][1] === want && ev[i][0] + span * 0.85 <= tNow) { te = ev[i][0]; break; }
+      if (te !== null) { if (s.vtrig !== te || s.vspan !== span) { s.vtrig = te; s.vspan = span; s.vbase = te - 0.1 * span; } t0 = s.vbase; held = true; } }
+    s.vt0 = t0; s.vheld = held;
+  }
+  const t0 = s.vt0 + p.pos, t1 = t0 + span, xt = t => X0 + (t - t0) / span * PW;
+  // courbes
+  for (let c = 0; c < 8; c++) {
+    const ev = EV[c]; const yh = top + c * rowH + 7, yl = top + (c + 1) * rowH - 9; ctx.strokeStyle = COL[c]; ctx.lineWidth = 1.8; ctx.beginPath();
+    let lv = P.lvAt(ev, t0); let x = X0; ctx.moveTo(x, lv ? yh : yl);
+    for (const e of ev) { if (e[0] <= t0 || e[0] >= t1) continue; const xx = xt(e[0]); ctx.lineTo(xx, lv ? yh : yl); lv = e[1]; ctx.lineTo(xx, lv ? yh : yl); }
+    ctx.lineTo(X0 + PW, lv ? yh : yl); ctx.stroke();
+  }
+  // décodage
+  const D = this.logicDecode(inst, r); ctx.font = '10px monospace';
+  for (const sp of D.spans) { if (sp.t1 < t0 || sp.t0 > t1) continue; const xa = Math.max(X0, xt(sp.t0)), xb = Math.min(X0 + PW, xt(sp.t1)); const y = top + sp.ch * rowH + rowH / 2;
+    if (sp.mark) { ctx.fillStyle = '#fde68a'; ctx.fillText(sp.label, xa - 3, top + sp.ch * rowH + 10); continue; }
+    if (xb - xa < 2) continue; ctx.fillStyle = sp.err ? 'rgba(239,68,68,.55)' : 'rgba(250,250,250,.16)'; ctx.fillRect(xa, y - 9, xb - xa, 18); ctx.strokeStyle = sp.err ? '#f87171' : '#9ca3af'; ctx.lineWidth = 1; ctx.strokeRect(xa, y - 9, xb - xa, 18);
+    if (xb - xa > ctx.measureText(sp.label).width + 4) { ctx.fillStyle = '#f8fafc'; ctx.fillText(sp.label, xa + 3, y + 3); } }
+  // axe de temps
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px monospace'; for (let i = 0; i <= 10; i += 2) ctx.fillText(i === 0 ? 't = ' + tl(t0) : '+' + tl(i * span / 10), Math.max(2, X0 + i * PW / 10 - (i === 0 ? 0 : 24)), top + 8 * rowH + 14);
+  // curseurs
+  if (cur.a !== null) { const ta = t0 + cur.a * span, tb = t0 + cur.b * span; ctx.strokeStyle = '#38bdf8'; ctx.setLineDash([4, 3]); [ta, tb].forEach(t => { const x = xt(t); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + 8 * rowH); ctx.stroke(); }); ctx.setLineDash([]);
+    const dt = Math.abs(tb - ta); if (dt > 0) info.innerHTML = '<b>Curseurs</b> : Δt = <b>' + tl(dt) + '</b> · 1/Δt = <b>' + fmt(1 / dt, 'Hz', 4) + '</b> <span class="muted">(débit en bauds si Δt = 1 bit)</span>'; }
+  else info.innerHTML = '<span class="muted">Glissez sur le chronogramme pour mesurer une durée (curseurs). ' + (p.trigCh >= 0 ? (s.vheld ? 'Déclenché sur D' + p.trigCh : 'En attente d\'un front sur D' + p.trigCh + '…') : 'Sans déclenchement : dernière activité affichée') + ' · fenêtre ' + tl(span) + '</span>';
+  if (dec._k !== D.html) { dec._k = D.html; dec.innerHTML = D.html; }
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 /* thermal.js — températures estimées des composants (« caméra thermique ») */
 (function (g) {
 'use strict';
@@ -1786,6 +2466,10 @@ function target(p, el) {
     case 'lamp': return { T: T0 + 130 * (el.bright || 0), tau: 1 };
     case 'relay': return { T: ratio((el.I || 0) ** 2 * q.Rc, (q.V * q.V / q.Rc) || 0.4, 40), tau: 8 };
     case 'opamp': return { T: T0 + 10 * Math.abs(el.Iout || 0) / 0.02, tau: 4 };
+    case 'gate': case 'inv': case 'dff': case 'cnt4': return { T: T0 + 8 + 60 * Math.max(0, Math.abs(el.Iout || 0)) / 0.05, tau: 4 };
+    case 'timer555': return { T: T0 + 8 + 50 * Math.abs(el.Iout || 0) / (q.Imax || 0.2), tau: 4 };
+    case 'opto': return { T: ratio(Math.abs((el.I || 0) * (el.V || 0)) + Math.abs((el.Vce || 0) * (el.Ic || 0)), 0.15), tau: 4 };
+    case 'mosfet': return { T: ratio(Math.abs((el.Vds || 0) * (el.Idr || 0)), q.Pmax || 0.4, 90), tau: 5 };
     default: return null;
   }
 }
@@ -1891,7 +2575,7 @@ NS.thermal = {
 const NS = g.NS = g.NS || {};
 const { h, $, $$, clear, PARTS, CATS, fmt } = NS;
 const LS = 'electrolab.v1';
-const FAULTS = { open: 'Circuit ouvert', short: 'Court-circuit', drift: 'Valeur dérivée (×3,3)', leaky: 'Fuite (résistance parallèle)', dried: 'Électrolytique séché (C↓, ESR↑)', dead: 'Hors service', ce: 'Collecteur-émetteur en court-circuit', be_open: 'Jonction base-émetteur ouverte', openP: 'Primaire coupé', openS: 'Secondaire coupé', turns: 'Spires en court-circuit', stuckOpen: 'Contact bloqué ouvert', oxid: 'Contact oxydé (47 Ω)', blown: 'Grillé', coilOpen: 'Bobine coupée', contact: 'Contact résistif', stuck: 'Armature bloquée' };
+const FAULTS = { open: 'Circuit ouvert', short: 'Court-circuit', drift: 'Valeur dérivée (×3,3)', leaky: 'Fuite (résistance parallèle)', dried: 'Électrolytique séché (C↓, ESR↑)', dead: 'Hors service', ce: 'Collecteur-émetteur en court-circuit', be_open: 'Jonction base-émetteur ouverte', openP: 'Primaire coupé', openS: 'Secondaire coupé', turns: 'Spires en court-circuit', stuckOpen: 'Contact bloqué ouvert', oxid: 'Contact oxydé (47 Ω)', blown: 'Grillé', coilOpen: 'Bobine coupée', stuck0: 'Sortie bloquée à 0', stuck1: 'Sortie bloquée à 1', ds: 'Drain-source en court-circuit', gs: 'Grille-source en court-circuit', ledOpen: 'LED d\'entrée coupée', phOpen: 'Phototransistor coupé', contact: 'Contact résistif', stuck: 'Armature bloquée' };
 NS.FAULTS = FAULTS;
 const plain = v => NS.fmt(v, '', 4).trim().replace(' ', '');
 
@@ -1986,7 +2670,8 @@ class App {
   }
   fieldRow(inst, f) {
     const p = inst.p; let ctl; const done = () => { this.changed('param'); this.editor.render(); };
-    if (f.kind === 'bool') ctl = h('input', { type: 'checkbox', checked: !!p[f.k], onchange: e => { p[f.k] = e.target.checked; done(); } });
+    if (f.kind === 'text') ctl = h('input', { type: 'text', value: p[f.k] == null ? '' : String(p[f.k]), style: { width: '100%' }, onchange: e => { p[f.k] = e.target.value; done(); } });
+    else if (f.kind === 'bool') ctl = h('input', { type: 'checkbox', checked: !!p[f.k], onchange: e => { p[f.k] = e.target.checked; done(); } });
     else if (f.kind === 'sel') ctl = h('select', { onchange: e => { const raw = e.target.value; const idx = f.opts.map(String).indexOf(raw); p[f.k] = f.opts[idx]; done(); this.refreshInspector(); } }, f.opts.map((o, i) => h('option', { value: String(o), selected: String(p[f.k]) === String(o) }, f.labels ? f.labels[i] : o)));
     else {
       const txt = h('input', { type: 'text', value: plain(p[f.k]), onchange: e => { const v = NS.parseVal(e.target.value); if (isNaN(v) || v < f.min || v > f.max) { e.target.value = plain(p[f.k]); this.toast('Valeur hors limites (' + plain(f.min) + ' – ' + plain(f.max) + ' ' + f.unit + ')', 'warn'); return; } p[f.k] = v; if (slider) slider.value = f.log ? Math.log10(v) : v; done(); } });

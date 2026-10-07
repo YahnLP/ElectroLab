@@ -4,7 +4,7 @@
 const NS = g.NS = g.NS || {};
 const { VT } = NS;
 const PARTS = NS.PARTS = {};
-const CATS = NS.CATS = ['Sources & alimentation', 'Passifs', 'Semi-conducteurs', 'Commande & protection', 'Instruments', 'Divers'];
+const CATS = NS.CATS = ['Sources & alimentation', 'Passifs', 'Semi-conducteurs', 'Commande & protection', 'Circuits intégrés & logique', 'Instruments', 'Divers'];
 const P2 = [{ n: 'A', x: -40, y: 0 }, { n: 'B', x: 40, y: 0 }];
 const L = (x1, y1, x2, y2, c) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"${c ? ' class="' + c + '"' : ''}/>`;
 const lead2 = a => L(-40, 0, -a, 0) + L(a, 0, 40, 0);
@@ -37,12 +37,13 @@ const REGS = {
 };
 function tr(VA, Vn, name) { const reg = 0.2, Vs = Vn * (1 + reg), n = Vs / 230, Is = VA / Vn, Rt = reg * Vn / Is; return { Vp: 230, Vs, VA, Rs: Rt / 2, Rp: Rt / 2 / (n * n), Lp: 40 + VA * 0.8, k: 0.998, name }; }
 const TRAFOS = { '230V / 6V · 3 VA': tr(3, 6, '230V / 6V · 3 VA'), '230V / 9V · 5 VA': tr(5, 9, '230V / 9V · 5 VA'), '230V / 12V · 10 VA': tr(10, 12, '230V / 12V · 10 VA'), '230V / 24V · 20 VA': tr(20, 24, '230V / 24V · 20 VA') };
-NS.LIB = { DIODES, LEDS, ZEN, BJTS, OPS, REGS, TRAFOS };
+NS.LIB = Object.assign(NS.LIB || {}, { DIODES, LEDS, ZEN, BJTS, OPS, REGS, TRAFOS });
 const opts = o => Object.keys(o);
 
 function def(type, d) { d.type = type; PARTS[type] = d; return d; }
 const num = (k, label, unit, o) => Object.assign({ k, label, unit, kind: 'num' }, o || {});
 const sel = (k, label, o, labels) => ({ k, label, kind: 'sel', opts: o, labels });
+NS.PD = { def, L, T, sel, num, opts, lead2 };
 
 /* ======================== SOURCES ======================== */
 def('psu', {
@@ -173,19 +174,19 @@ def('lamp', {
 /* ======================== INSTRUMENTS ======================== */
 def('multimeter', {
   ext: [-50,-62,50,62],
-  label: 'Multimètre numérique', cat: 4, ref: 'MM', pins: [{ n: 'V/Ω/A', x: -20, y: 80, c: 'r' }, { n: 'COM', x: 20, y: 80, c: 'k' }], defaults: { mode: 'VDC' },
+  label: 'Multimètre numérique', cat: 5, ref: 'MM', pins: [{ n: 'V/Ω/A', x: -20, y: 80, c: 'r' }, { n: 'COM', x: 20, y: 80, c: 'k' }], defaults: { mode: 'VDC' },
   fields: [sel('mode', 'Fonction', ['VDC', 'VAC', 'mA', 'A', 'Ohm', 'Diode', 'Cont'], ['V ⎓ (continu)', 'V ∿ (alternatif)', 'mA ⎓', 'A ⎓ (10 A)', 'Ω (ohmmètre)', 'Test diode', 'Continuité'])], eff: p => p, w: 110, h: 170, body: true,
   symbol: i => `<rect x="-50" y="-62" width="100" height="124" rx="8" class="inst mm"/><rect x="-40" y="-52" width="80" height="30" rx="3" class="lcd"/><text class="mm-read" x="36" y="-31" text-anchor="end">----</text>` + `<circle cx="0" cy="18" r="20" class="dial"/>` + L(0, 18, 0, -0, 'thick') + L(-20, 62, -20, 80) + L(20, 62, 20, 80) + T(-20, 54, 'V/Ω/A', 'sym-xs') + T(20, 54, 'COM', 'sym-xs'),
 });
 def('scope', {
   ext: [-80,-62,80,62],
-  label: 'Oscilloscope 2 voies', cat: 4, ref: 'OSC', pins: [{ n: 'CH1', x: -40, y: 80, c: 'y' }, { n: 'CH2', x: 0, y: 80, c: 'c' }, { n: 'GND', x: 40, y: 80, c: 'k' }],
+  label: 'Oscilloscope 2 voies', cat: 5, ref: 'OSC', pins: [{ n: 'CH1', x: -40, y: 80, c: 'y' }, { n: 'CH2', x: 0, y: 80, c: 'c' }, { n: 'GND', x: 40, y: 80, c: 'k' }],
   defaults: { tdiv: 5e-3, v1: 1, v2: 1, c1: 'DC', c2: 'DC', trig: 0, edge: 'up', src: 1, pos1: 0, pos2: 0, on1: true, on2: false, run: true, tpos: 1 }, fields: [], eff: p => p, w: 190, h: 170, body: true,
   symbol: i => `<rect x="-80" y="-62" width="160" height="124" rx="8" class="inst"/><rect x="-70" y="-52" width="100" height="80" rx="3" class="lcd"/><g class="sym-f" stroke="#55cc77" opacity=".6"><path d="M-62 -12 q12 -26 24 0 t24 0 t24 0"/></g>` + L(-40, 62, -40, 80) + L(0, 62, 0, 80) + L(40, 62, 40, 80) + T(-40, 54, 'CH1', 'sym-xs') + T(0, 54, 'CH2', 'sym-xs') + T(40, 54, 'GND', 'sym-xs') + `<circle cx="52" cy="-30" r="9" class="dial"/><circle cx="52" cy="0" r="9" class="dial"/>`,
 });
 def('ground', {
   ext: [-14,0,14,24],
-  label: 'Masse (0 V)', cat: 5, ref: 'GND', pins: [{ n: 'G', x: 0, y: 0 }], defaults: {}, fields: [], eff: p => p, noLabel: true,
+  label: 'Masse (0 V)', cat: 6, ref: 'GND', pins: [{ n: 'G', x: 0, y: 0 }], defaults: {}, fields: [], eff: p => p, noLabel: true,
   symbol: i => L(0, 0, 0, 12) + L(-14, 12, 14, 12, 'thick') + L(-9, 18, 9, 18, 'thick') + L(-4, 24, 4, 24, 'thick'),
 });
 /* valeurs de départ des paramètres */

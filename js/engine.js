@@ -132,7 +132,7 @@ class Engine {
     let dmax = 0, vmax = 0; const nv = this.nNodes - 1;
     for (let i = 0; i < nv; i++) { const d = Math.abs(this.x[i] - this.xp[i]); if (d > dmax) dmax = d; const a = Math.abs(this.x[i]); if (a > vmax) vmax = a; }
     this.lastDelta = dmax;
-    this.t += hh; this.h = hh;
+    this.t += hh; this.h = hh; this.dtCap = Infinity;
     for (const e of this.els) if (e.accept) e.accept(this, hh);
     this.xp.set(this.x); this.stats.steps++;
     // choix du pas suivant
@@ -142,6 +142,7 @@ class Engine {
       if (dmax > lim) this.dtNext = Math.max(this.dtMin, hh * 0.5);
       else if (dmax < lim * 0.25) this.dtNext = Math.min(this.dtMax, hh * 1.3);
     }
+    if (this.dtCap < this.dtNext) this.dtNext = Math.max(this.dtMin, this.dtCap);   // les circuits à seuils (555, logique) demandent des pas fins près d'un basculement
     if (this.dtNext > this.dtMax) this.dtNext = this.dtMax;
     return ok;
   }
@@ -154,7 +155,7 @@ class Engine {
       // pas courant, jamais inférieur à dtMin (sinon un pas « reste de trame » minuscule faisait avaler toute la trame suivante en un seul pas de 16 ms)
       const dn = Math.max(this.dtNext, this.dtMin); let h = Math.min(dn, tEnd - this.t); if (h <= 0) break;
       this.step(h);
-      if (h < dn * 0.5) this.dtNext = Math.max(this.dtNext, dn);   // pas tronqué par la fin de la trame d'affichage : on garde le pas précédent
+      if (h < dn * 0.5) this.dtNext = Math.max(this.dtNext, Math.min(dn, this.dtCap));   // pas tronqué par la fin de la trame d'affichage : on garde le pas précédent
       if ((++n & 31) === 0 && budgetMs && Date.now() - t0 > budgetMs) break;
     }
     return this.t;

@@ -129,6 +129,7 @@ class Editor {
         const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; const gl = e.querySelector(p.type === 'led' ? '.led-glow' : '.lamp-glow');
         if (gl) { let o = 0; if (el && !p.burnt) o = p.type === 'led' ? Math.min(1, Math.max(0, (el.I || 0) / 0.012)) : (el.bright || 0); gl.setAttribute('opacity', (o * 0.85).toFixed(2)); }
       }
+      { const lvs = e.querySelectorAll('[data-lv]'); if (lvs.length) { const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; lvs.forEach(n => { const v = el && el.s && el.s.on ? el.s[n.dataset.lv] : null; n.style.fill = v === null ? '#cbd5e1' : v ? '#22c55e' : '#334155'; }); } }
       this.heatUpdate(p, e);
       if (p.type === 'multimeter') { const t = e.querySelector('.mm-read'); if (t && !sim.dirty) { const r = this.app.instr.reading(p); t.textContent = r.s + ' ' + r.u; } }
       if (p.type === 'psu') { const led = e.querySelector('.psu-led'); const el = sim && !sim.dirty ? sim.elOf.get(p.id) : null; if (led) led.style.fill = el && el.cc ? '#ef4444' : p.p.on ? '#22c55e' : '#6b7280'; }

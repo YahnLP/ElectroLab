@@ -19,6 +19,10 @@ function target(p, el) {
     case 'lamp': return { T: T0 + 130 * (el.bright || 0), tau: 1 };
     case 'relay': return { T: ratio((el.I || 0) ** 2 * q.Rc, (q.V * q.V / q.Rc) || 0.4, 40), tau: 8 };
     case 'opamp': return { T: T0 + 10 * Math.abs(el.Iout || 0) / 0.02, tau: 4 };
+    case 'gate': case 'inv': case 'dff': case 'cnt4': return { T: T0 + 8 + 60 * Math.max(0, Math.abs(el.Iout || 0)) / 0.05, tau: 4 };
+    case 'timer555': return { T: T0 + 8 + 50 * Math.abs(el.Iout || 0) / (q.Imax || 0.2), tau: 4 };
+    case 'opto': return { T: ratio(Math.abs((el.I || 0) * (el.V || 0)) + Math.abs((el.Vce || 0) * (el.Ic || 0)), 0.15), tau: 4 };
+    case 'mosfet': return { T: ratio(Math.abs((el.Vds || 0) * (el.Idr || 0)), q.Pmax || 0.4, 90), tau: 5 };
     default: return null;
   }
 }

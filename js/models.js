@@ -22,6 +22,8 @@ class El {
   burn(eng, why) { if (this.inst.burnt) return; this.inst.burnt = why; this.ver++; if (eng.kick) eng.kick(); ev(eng, 'burn', this, why); }
 }
 
+NS.El = El; NS.ev = ev;
+
 /* ---------------- Résistance (aussi LDR, CTN) ---------------- */
 class Resistor extends El {
   value() {

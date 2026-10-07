@@ -22,8 +22,8 @@ class Instruments {
   constructor(app) { this.app = app; this.wins = new Map(); this.audio = null; }
   open(inst) {
     if (this.wins.has(inst.id)) { const w = this.wins.get(inst.id); w.el.style.zIndex = ++this.z || (this.z = 30); return; }
-    const mk = { multimeter: () => this.multimeter(inst), scope: () => this.scope(inst), psu: () => this.psu(inst), gbf: () => this.gbf(inst) }[inst.type]; if (!mk) return false;
-    const n = this.wins.size; const w = mk(); w.el.style.left = (window.innerWidth - 740 - n * 30) + 'px'; w.el.style.top = (110 + n * 30) + 'px'; w.el.style.zIndex = ++this.z || (this.z = 30);
+    const mk = { multimeter: () => this.multimeter(inst), scope: () => this.scope(inst), psu: () => this.psu(inst), gbf: () => this.gbf(inst), logic: () => this.logic(inst) }[inst.type]; if (!mk) return false;
+    const n = this.wins.size; const w = mk(); w.el.style.left = Math.max(0, window.innerWidth - (inst.type === 'logic' ? 810 : 740) - n * 30) + 'px'; w.el.style.top = (110 + n * 30) + 'px'; w.el.style.zIndex = ++this.z || (this.z = 30);
     $('#winlayer').appendChild(w.el); this.wins.set(inst.id, w); this.drag(w.el); return true;
   }
   closeAll() { for (const w of this.wins.values()) w.el.remove(); this.wins.clear(); this.beep(false); }

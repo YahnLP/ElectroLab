@@ -4,7 +4,7 @@
 const NS = g.NS = g.NS || {};
 const { h, $, $$, clear, PARTS, CATS, fmt } = NS;
 const LS = 'electrolab.v1';
-const FAULTS = { open: 'Circuit ouvert', short: 'Court-circuit', drift: 'Valeur dérivée (×3,3)', leaky: 'Fuite (résistance parallèle)', dried: 'Électrolytique séché (C↓, ESR↑)', dead: 'Hors service', ce: 'Collecteur-émetteur en court-circuit', be_open: 'Jonction base-émetteur ouverte', openP: 'Primaire coupé', openS: 'Secondaire coupé', turns: 'Spires en court-circuit', stuckOpen: 'Contact bloqué ouvert', oxid: 'Contact oxydé (47 Ω)', blown: 'Grillé', coilOpen: 'Bobine coupée', contact: 'Contact résistif', stuck: 'Armature bloquée' };
+const FAULTS = { open: 'Circuit ouvert', short: 'Court-circuit', drift: 'Valeur dérivée (×3,3)', leaky: 'Fuite (résistance parallèle)', dried: 'Électrolytique séché (C↓, ESR↑)', dead: 'Hors service', ce: 'Collecteur-émetteur en court-circuit', be_open: 'Jonction base-émetteur ouverte', openP: 'Primaire coupé', openS: 'Secondaire coupé', turns: 'Spires en court-circuit', stuckOpen: 'Contact bloqué ouvert', oxid: 'Contact oxydé (47 Ω)', blown: 'Grillé', coilOpen: 'Bobine coupée', stuck0: 'Sortie bloquée à 0', stuck1: 'Sortie bloquée à 1', ds: 'Drain-source en court-circuit', gs: 'Grille-source en court-circuit', ledOpen: 'LED d\'entrée coupée', phOpen: 'Phototransistor coupé', contact: 'Contact résistif', stuck: 'Armature bloquée' };
 NS.FAULTS = FAULTS;
 const plain = v => NS.fmt(v, '', 4).trim().replace(' ', '');
 
@@ -99,7 +99,8 @@ class App {
   }
   fieldRow(inst, f) {
     const p = inst.p; let ctl; const done = () => { this.changed('param'); this.editor.render(); };
-    if (f.kind === 'bool') ctl = h('input', { type: 'checkbox', checked: !!p[f.k], onchange: e => { p[f.k] = e.target.checked; done(); } });
+    if (f.kind === 'text') ctl = h('input', { type: 'text', value: p[f.k] == null ? '' : String(p[f.k]), style: { width: '100%' }, onchange: e => { p[f.k] = e.target.value; done(); } });
+    else if (f.kind === 'bool') ctl = h('input', { type: 'checkbox', checked: !!p[f.k], onchange: e => { p[f.k] = e.target.checked; done(); } });
     else if (f.kind === 'sel') ctl = h('select', { onchange: e => { const raw = e.target.value; const idx = f.opts.map(String).indexOf(raw); p[f.k] = f.opts[idx]; done(); this.refreshInspector(); } }, f.opts.map((o, i) => h('option', { value: String(o), selected: String(p[f.k]) === String(o) }, f.labels ? f.labels[i] : o)));
     else {
       const txt = h('input', { type: 'text', value: plain(p[f.k]), onchange: e => { const v = NS.parseVal(e.target.value); if (isNaN(v) || v < f.min || v > f.max) { e.target.value = plain(p[f.k]); this.toast('Valeur hors limites (' + plain(f.min) + ' – ' + plain(f.max) + ' ' + f.unit + ')', 'warn'); return; } p[f.k] = v; if (slider) slider.value = f.log ? Math.log10(v) : v; done(); } });
