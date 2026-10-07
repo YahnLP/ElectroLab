@@ -182,7 +182,7 @@ class App {
     this._corr = h('div#tpcorr'); box.appendChild(this._corr);
   }
   questionEl(q, i) {
-    const res = this.tp.qres[i]; const cls = res === undefined ? '' : res ? 'ok' : 'ko'; const row = h('div.q.' + cls, h('div', { html: (i + 1) + '. ' + q.q }));
+    const res = this.tp.qres[i]; const cls = res === undefined ? '' : res ? 'ok' : 'ko'; const row = h('div.q.' + cls, h('div', { html: (i + 1) + '. ' + (typeof q.q === 'function' ? q.q({ tp: this.tp }) : q.q) }));
     if (q.type === 'choice') { const name = 'q' + i; q.options.forEach((o, k) => row.appendChild(h('label', { style: { display: 'block' } }, h('input', { type: 'radio', name, checked: this.answers[i] === k, onchange: () => { this.answers[i] = k; } }), ' ' + o))); }
     else if (q.type === 'part') { const sel = h('select', { onchange: e => { this.answers[i] = e.target.value; } }, h('option', { value: '' }, '— choisir —'), this.circuit.parts.filter(p => !['ground', 'multimeter', 'scope', 'psu', 'gbf', 'mains', 'battery'].includes(p.type)).map(p => h('option', { value: p.ref, selected: this.answers[i] === p.ref }, p.ref + ' (' + PARTS[p.type].label + ')'))); row.appendChild(sel); }
     else if (q.type === 'text') row.appendChild(h('textarea', { rows: 2, style: { width: '100%' }, onchange: e => { this.answers[i] = e.target.value; } }, this.answers[i] || ''));

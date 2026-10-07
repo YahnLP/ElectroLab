@@ -41,7 +41,7 @@ def('timer555', {
   pins: [{ n: 'GND', x: 0, y: 60, c: 'k' }, { n: 'TRIG', x: -60, y: -40 }, { n: 'OUT', x: 60, y: -40 }, { n: 'RESET', x: 20, y: -60 }, { n: 'CTRL', x: -60, y: 0 }, { n: 'THR', x: -60, y: 40 }, { n: 'DIS', x: 60, y: 40 }, { n: 'VCC', x: -20, y: -60, c: 'r' }],
   defaults: { model: 'NE555' }, fields: [sel('model', 'Référence', Object.keys(LIB.T555), Object.keys(LIB.T555).map(k => LIB.T555[k].name))], eff: p => Object.assign({}, LIB.T555[p.model] || LIB.T555.NE555, { model: p.model }), faults: ['dead'],
   symbol: i => body(-40, -60, 40, 60) + L(-60, -40, -40, -40) + L(-60, 0, -40, 0) + L(-60, 40, -40, 40) + L(40, -40, 60, -40) + L(40, 40, 60, 40) + L(-20, -60, -20, -50) + L(20, -60, 20, -50) + L(0, 60, 0, 50) +
-    T(-36, -36, 'TRIG 2', 'sym-xs', 'start') + T(-36, 4, 'CTRL 5', 'sym-xs', 'start') + T(-36, 44, 'THR 6', 'sym-xs', 'start') + T(36, -36, '3 OUT', 'sym-xs', 'end') + T(36, 44, '7 DIS', 'sym-xs', 'end') + T(-20, -42, '8', 'sym-xs') + T(20, -42, 'R 4', 'sym-xs') + T(0, 46, 'GND 1', 'sym-xs') + T(0, 4, i.p.model, 'sym-s') + lv(['out', 26, -40]),
+    T(-36, -36, 'TRIG', 'sym-xs', 'start') + T(-36, 4, 'CTRL', 'sym-xs', 'start') + T(-36, 44, 'THR', 'sym-xs', 'start') + T(36, -36, 'OUT', 'sym-xs', 'end') + T(36, 44, 'DIS', 'sym-xs', 'end') + T(-20, -64, 'VCC', 'sym-xs') + T(20, -64, 'RST', 'sym-xs') + T(0, 46, 'GND', 'sym-xs') + T(0, -10, i.p.model, 'sym-s') + lv(['out', 26, -40]),
 });
 def('opto', {
   ext: [-40, -40, 40, 40], label: 'Optocoupleur (PC817, 4N25)', cat: SEMI, ref: 'OC',

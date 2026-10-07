@@ -1576,7 +1576,7 @@ def('timer555', {
   pins: [{ n: 'GND', x: 0, y: 60, c: 'k' }, { n: 'TRIG', x: -60, y: -40 }, { n: 'OUT', x: 60, y: -40 }, { n: 'RESET', x: 20, y: -60 }, { n: 'CTRL', x: -60, y: 0 }, { n: 'THR', x: -60, y: 40 }, { n: 'DIS', x: 60, y: 40 }, { n: 'VCC', x: -20, y: -60, c: 'r' }],
   defaults: { model: 'NE555' }, fields: [sel('model', 'Référence', Object.keys(LIB.T555), Object.keys(LIB.T555).map(k => LIB.T555[k].name))], eff: p => Object.assign({}, LIB.T555[p.model] || LIB.T555.NE555, { model: p.model }), faults: ['dead'],
   symbol: i => body(-40, -60, 40, 60) + L(-60, -40, -40, -40) + L(-60, 0, -40, 0) + L(-60, 40, -40, 40) + L(40, -40, 60, -40) + L(40, 40, 60, 40) + L(-20, -60, -20, -50) + L(20, -60, 20, -50) + L(0, 60, 0, 50) +
-    T(-36, -36, 'TRIG 2', 'sym-xs', 'start') + T(-36, 4, 'CTRL 5', 'sym-xs', 'start') + T(-36, 44, 'THR 6', 'sym-xs', 'start') + T(36, -36, '3 OUT', 'sym-xs', 'end') + T(36, 44, '7 DIS', 'sym-xs', 'end') + T(-20, -42, '8', 'sym-xs') + T(20, -42, 'R 4', 'sym-xs') + T(0, 46, 'GND 1', 'sym-xs') + T(0, 4, i.p.model, 'sym-s') + lv(['out', 26, -40]),
+    T(-36, -36, 'TRIG', 'sym-xs', 'start') + T(-36, 4, 'CTRL', 'sym-xs', 'start') + T(-36, 44, 'THR', 'sym-xs', 'start') + T(36, -36, 'OUT', 'sym-xs', 'end') + T(36, 44, 'DIS', 'sym-xs', 'end') + T(-20, -64, 'VCC', 'sym-xs') + T(20, -64, 'RST', 'sym-xs') + T(0, 46, 'GND', 'sym-xs') + T(0, -10, i.p.model, 'sym-s') + lv(['out', 26, -40]),
 });
 def('opto', {
   ext: [-40, -40, 40, 40], label: 'Optocoupleur (PC817, 4N25)', cat: SEMI, ref: 'OC',
@@ -1616,7 +1616,7 @@ def('fg_uart', {
   fields: [bool('on', 'Émission active'), baud, sel('bits', 'Bits de données', [7, 8], ['7', '8']), sel('parity', 'Parité', ['N', 'E', 'O'], ['Aucune', 'Paire', 'Impaire']), sel('stop', 'Bits de stop', [1, 2], ['1', '2']),
     sel('level', 'Niveaux', ['ttl', 'rs232'], ['TTL / CMOS (0–5 V)', 'RS-232 (±12 V, logique inversée)']), sel('vhi', 'Tension TTL', [3.3, 5], ['3,3 V', '5 V']), txt('msg', 'Message (\\r \\n \\xNN)'), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => p, faults: FRAME_FAULTS,
-  symbol: i => box(-50, -40, 50, 40, 'UART', i.p.baud + ' bd') + wave(-18, 22) + L(50, -20, 60, -20) + L(50, 20, 60, 20) + T(40, -16, 'TX', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -40, 50, 40, 'UART', i.p.hidden ? '? bd' : i.p.baud + ' bd') + wave(-18, 22) + L(50, -20, 60, -20) + L(50, 20, 60, 20) + T(40, -16, 'TX', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
 });
 def('fg_rs485', {
   ext: [-50, -50, 50, 50], label: 'Nœud RS-485 / Modbus RTU (maître + esclave)', cat: 0, ref: 'MB', pins: [{ n: 'A', x: 60, y: -20 }, { n: 'B', x: 60, y: 0 }, { n: 'GND', x: 60, y: 20, c: 'k' }],
@@ -1632,7 +1632,7 @@ def('fg_i2c', {
   fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCL', [100000, 400000], ['100 kHz (standard)', '400 kHz (rapide)']), num('addr', 'Adresse 7 bits (décimal)', '', { min: 0, max: 127 }), sel('rw', 'Sens', ['W', 'R'], ['Écriture', 'Lecture']), txt('data', 'Octets (hexa)'), sel('ack', 'Esclave présent (ACK)', ['oui', 'non'], ['Oui', 'Non (NACK)']),
     sel('pullup', 'Résistances de rappel', ['none', '4k7'], ['Externes (à câbler)', 'Internes 4,7 kΩ']), sel('vhi', 'Tension du bus', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => Object.assign({}, p, { ack: p.ack !== 'non' }), faults: FRAME_FAULTS,
-  symbol: i => box(-50, -50, 50, 50, 'I²C', (i.p.freq / 1000) + ' kHz') + `<g class="sym-f" stroke="#2563eb"><path d="M-30 14 h10 v-8 h10 v8 h10 v-8 h10"/><path d="M-30 30 h6 v-8 h22 v8 h12"/></g>` + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'SCL', 'sym-xs', 'end') + T(40, 4, 'SDA', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -50, 50, 50, 'I²C', i.p.hidden ? '? kHz' : (i.p.freq / 1000) + ' kHz') + `<g class="sym-f" stroke="#2563eb"><path d="M-30 14 h10 v-8 h10 v8 h10 v-8 h10"/><path d="M-30 30 h6 v-8 h22 v8 h12"/></g>` + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'SCL', 'sym-xs', 'end') + T(40, 4, 'SDA', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
 });
 def('fg_spi', {
   ext: [-50, -60, 50, 60], label: 'Maître / esclave SPI', cat: 0, ref: 'SPI', pins: [{ n: 'CS', x: 60, y: -40 }, { n: 'SCK', x: 60, y: -20 }, { n: 'MOSI', x: 60, y: 0 }, { n: 'MISO', x: 60, y: 20 }, { n: 'GND', x: 60, y: 40, c: 'k' }],
@@ -1640,7 +1640,7 @@ def('fg_spi', {
   fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCK', [10000, 100000, 1000000, 4000000], ['10 kHz', '100 kHz', '1 MHz', '4 MHz']), sel('mode', 'Mode SPI (CPOL/CPHA)', [0, 1, 2, 3], ['0 (0,0)', '1 (0,1)', '2 (1,0)', '3 (1,1)']), txt('data', 'Octets MOSI (hexa)'), txt('reply', 'Octets MISO (hexa, vide = ~MOSI)'),
     sel('vhi', 'Tension', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => p, faults: FRAME_FAULTS,
-  symbol: i => box(-50, -60, 50, 60, 'SPI', 'mode ' + i.p.mode) + wave(-18, 40) + [-40, -20, 0, 20, 40].map(y => L(50, y, 60, y)).join('') + T(40, -36, 'CS', 'sym-xs', 'end') + T(40, -16, 'SCK', 'sym-xs', 'end') + T(40, 4, 'MOSI', 'sym-xs', 'end') + T(40, 24, 'MISO', 'sym-xs', 'end') + T(40, 44, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -60, 50, 60, 'SPI', i.p.hidden ? 'mode ?' : 'mode ' + i.p.mode) + wave(-18, 40) + [-40, -20, 0, 20, 40].map(y => L(50, y, 60, y)).join('') + T(40, -36, 'CS', 'sym-xs', 'end') + T(40, -16, 'SCK', 'sym-xs', 'end') + T(40, 4, 'MOSI', 'sym-xs', 'end') + T(40, 24, 'MISO', 'sym-xs', 'end') + T(40, 44, 'GND', 'sym-xs', 'end'),
 });
 const CAT_I = NS.CATS.indexOf('Instruments');
 def('logic', {
@@ -1784,6 +1784,7 @@ function valueText(i) {
     case 'fuse': return (p.fast ? 'F ' : 'T ') + fmt(p.I, 'A', 3);
     case 'lamp': return p.V + ' V / ' + p.P + ' W';
     case 'relay': return 'Bobine ' + p.V + ' V';
+    case 'gate': case 'inv': return p.fn + ' · ' + p.fam; case 'dff': case 'cnt4': return p.fam; case 'timer555': case 'opto': case 'mosfet': return p.model;
     case 'ldr': return fmt(p.lux, 'lx', 3); case 'ctn': return p.T + ' °C';
     default: return '';
   }
@@ -2753,7 +2754,7 @@ class App {
     this._corr = h('div#tpcorr'); box.appendChild(this._corr);
   }
   questionEl(q, i) {
-    const res = this.tp.qres[i]; const cls = res === undefined ? '' : res ? 'ok' : 'ko'; const row = h('div.q.' + cls, h('div', { html: (i + 1) + '. ' + q.q }));
+    const res = this.tp.qres[i]; const cls = res === undefined ? '' : res ? 'ok' : 'ko'; const row = h('div.q.' + cls, h('div', { html: (i + 1) + '. ' + (typeof q.q === 'function' ? q.q({ tp: this.tp }) : q.q) }));
     if (q.type === 'choice') { const name = 'q' + i; q.options.forEach((o, k) => row.appendChild(h('label', { style: { display: 'block' } }, h('input', { type: 'radio', name, checked: this.answers[i] === k, onchange: () => { this.answers[i] = k; } }), ' ' + o))); }
     else if (q.type === 'part') { const sel = h('select', { onchange: e => { this.answers[i] = e.target.value; } }, h('option', { value: '' }, '— choisir —'), this.circuit.parts.filter(p => !['ground', 'multimeter', 'scope', 'psu', 'gbf', 'mains', 'battery'].includes(p.type)).map(p => h('option', { value: p.ref, selected: this.answers[i] === p.ref }, p.ref + ' (' + PARTS[p.type].label + ')'))); row.appendChild(sel); }
     else if (q.type === 'text') row.appendChild(h('textarea', { rows: 2, style: { width: '100%' }, onchange: e => { this.answers[i] = e.target.value; } }, this.answers[i] || ''));
@@ -2825,6 +2826,16 @@ NS.App = App;
   C.dep1 = [METH, { t: 'Rappels : la chaîne d\'alimentation 5 V', h: '<p>Secteur 230 V → <b>fusible</b> (protège du court-circuit, I²t) → <b>transformateur</b> (230 V → 12 V~, isolation) → <b>pont de diodes</b> (redressement) → <b>condensateur de filtrage</b> (≈ 16–17 V avec ondulation) → <b>régulateur 7805</b> (5 V) → charge.</p><p>Valeurs attendues : secondaire ≈ 12 V<sub>eff</sub> ; après filtrage ≈ 15–16 V ; sortie 5 V. Ondulation à 100 Hz. Les écarts guident la localisation : pas de tension du tout → fusible, transformateur ; tension filtrée OK mais pas de 5 V → régulateur ; forte ondulation → diode ouverte ou C séché.</p><p>Un composant en court-circuit peut en détruire d\'autres (panne <b>en cascade</b>) : toujours chercher la cause avant de remettre sous tension. La <b>caméra thermique</b> repère les composants anormalement chauds.</p>' }];
   C.dep2 = [METH, { t: 'Rappels : le transistor en commutation', h: '<p>Chaîne : SW1 → R<sub>B</sub> → base ; R<sub>C</sub> et LED en série avec collecteur-émetteur. Fonctionnement normal fermé : V<sub>BE</sub> ≈ 0,7 V, V<sub>CE</sub> ≈ 0,1 V (saturé), LED allumée. Ouvert : V<sub>BE</sub> ≈ 0, V<sub>CE</sub> ≈ V<sub>cc</sub>.</p><p>Diagnostic : V<sub>BE</sub> = 0 alors que SW1 est fermé → circuit de commande coupé (R<sub>B</sub>, fil, interrupteur). V<sub>BE</sub> ≈ 0,7 V mais V<sub>CE</sub> ≈ V<sub>cc</sub> → transistor coupé entre C et E. V<sub>CE</sub> ≈ 0 LED éteinte alors que SW1 ouvert → C-E en court-circuit.</p>' }];
   C.dep3 = [METH, { t: 'Rappels : l\'AOP inverseur et son alimentation', h: '<p>Un AOP a besoin de <b>V+ et V− (±12 V)</b> sur ses broches d\'alimentation : <b>vérifier l\'alimentation avant tout</b>. Sans une des deux, la sortie reste à 0 V ou bloquée.</p><p>Gain attendu G = −R<sub>f</sub>/R<sub>1</sub>. Sortie écrêtée à ≈ ±V<sub>sat</sub> quelle que soit l\'entrée → boucle de contre-réaction ouverte (R<sub>f</sub> coupée). Sortie à 0 V avec une entrée présente → R<sub>1</sub> coupée, AOP HS ou alimentation absente.</p><p>On compare à l\'oscilloscope entrée (CH1) et sortie (CH2).</p>' }];
+
+  C.portes = [{ t: 'Portes logiques et niveaux', h: '<p>Une porte combine des entrées binaires (0 / 1) : <b>ET</b> (1 si A et B), <b>OU</b>, <b>NON</b>, <b>NON-ET</b> (NAND), <b>NON-OU</b> (NOR), <b>OU exclusif</b> (XOR : 1 si A ≠ B). Sa <b>table de vérité</b> donne la sortie pour chaque combinaison d\'entrées.</p><p><b>Alimentation</b> : un circuit intégré se branche sur VCC et GND ; sans alimentation la sortie n\'a aucun sens. <b>CMOS (74HC)</b> : niveaux ≈ 0 V et Vcc, entrées à très haute impédance, entrée libre = indéterminée. <b>TTL (74LS)</b> : sortie haute ≈ 3,4 V ; une entrée au niveau bas <i>débite ≈ 0,4 mA</i> (le pull-down doit être faible : 470 Ω) ; une entrée libre est lue « 1 ». Toujours relier les entrées par une <b>résistance de rappel</b>.</p>' }];
+  C.ne555 = [{ t: 'Le NE555 en astable', h: '<p>Le 555 contient un diviseur 3 × 5 kΩ (d\'où son nom), deux comparateurs (seuils <b>Vcc/3</b> sur TRIG et <b>2·Vcc/3</b> sur THR), une bascule SR et un transistor de décharge (DIS). En astable, C se charge par R1 + R2 de Vcc/3 à 2·Vcc/3, puis se décharge par R2 : <b>t<sub>H</sub> = 0,69·(R1 + R2)·C</b>, <b>t<sub>L</sub> = 0,69·R2·C</b>, <b>f = 1,44 / ((R1 + 2·R2)·C)</b>. Rapport cyclique α = (R1 + R2)/(R1 + 2·R2) &gt; 50 %.</p><p>Le NE555 (bipolaire) supporte 200 mA en sortie ; le TLC555 (CMOS) consomme très peu mais ne fournit que 10 mA.</p>' }];
+  C.opto = [{ t: 'Optocoupleur et isolation galvanique', h: '<p>Une LED infrarouge éclaire un phototransistor : le signal passe par la <b>lumière</b>, sans liaison électrique (tenue en tension typ. 5 kV). On protège ainsi un circuit logique d\'un circuit de puissance ou d\'un bus parasité.</p><p><b>CTR</b> = I<sub>C</sub>/I<sub>F</sub> (PC817 ≈ 100 %, 4N25 ≈ 20-30 %). Pour <b>saturer</b> la sortie : I<sub>C,sat</sub> = (V<sub>alim</sub> − 0,2)/R<sub>C</sub>, puis I<sub>F</sub> ≥ 2·I<sub>C,sat</sub>/CTR (marge, car le CTR varie beaucoup) ; R<sub>A</sub> = (V<sub>commande</sub> − V<sub>F</sub>)/I<sub>F</sub>.</p>' }];
+  C.mosfet = [{ t: 'Le MOSFET en commutation', h: '<p>Le MOSFET est commandé par la <b>tension V<sub>GS</sub></b> (grille isolée : courant de grille nul en continu). Bloqué si V<sub>GS</sub> &lt; V<sub>GS(th)</sub> ; saturé (R<sub>DS(on)</sub> de quelques mΩ à quelques dizaines de mΩ) si V<sub>GS</sub> est nettement supérieur au seuil. Un MOSFET standard (IRF540N) veut ≈ 10 V ; un <b>logic-level</b> (IRLZ44N) conduit à 4,5 V, voire 3,3 V.</p><p>Pertes en conduction : P = R<sub>DS(on)</sub>·I<sub>D</sub>². Mal commandé, le MOSFET reste en zone linéaire (V<sub>DS</sub> élevée) : il chauffe et peut être détruit. Vérifier aussi I<sub>D,max</sub> (2N7000 : 200 mA).</p>' }];
+  C.dep_log = [METH, { t: 'Rappels : dépanner une chaîne logique', h: '<p>On suit le signal d\'étage en étage et on compare le niveau mesuré à la <b>table de vérité</b>. Sortie qui ne change jamais = sortie bloquée (circuit défectueux ou alimentation absente). <b>Mesurer VCC sur la broche du circuit</b>. Sortie correcte mais récepteur éteint → charge ou résistance coupée.</p>' }];
+  C.uart = [{ t: 'La trame UART et le RS-232', h: '<p>Liaison <b>asynchrone</b> : pas d\'horloge, les deux extrémités s\'accordent sur le <b>débit</b> (bauds : 9600, 19200, 115200…). Trame : repos à 1 → <b>start</b> (0) → 7 ou 8 bits de données, <b>bit de poids faible d\'abord</b> → parité éventuelle (paire : le nombre total de 1 est pair) → 1 ou 2 <b>stops</b> (1). Durée d\'un bit T = 1/débit ; « 8N1 » = 8 données, pas de parité, 1 stop (10 bits par octet).</p><p>Niveaux TTL (0 / 3,3 ou 5 V) pour les microcontrôleurs ; <b>RS-232</b> : ±3 à ±15 V (typ. ±12 V), <b>logique inversée</b> (1 = négatif). Messages en ASCII : 0x41 = « A », 0x0D = retour chariot, 0x0A = saut de ligne.</p><p>À l\'analyseur logique : mesurer le plus petit créneau pour trouver le débit, essayer les formats jusqu\'à ne plus avoir d\'erreur de parité ou de stop.</p>' }];
+  C.modbus = [{ t: 'Modbus RTU sur RS-485', h: '<p><b>RS-485</b> : liaison <b>différentielle</b> (fils A et B), niveau = A − B (&gt; +200 mV ou &lt; −200 mV) : immunité aux parasites, jusqu\'à 1200 m et 32 nœuds, half-duplex. <b>Modbus RTU</b> : maître/esclaves ; trame = <b>adresse</b> (1 à 247) · <b>fonction</b> · données · <b>CRC16</b> (2 octets, poids faible d\'abord). Les trames sont séparées par un silence ≥ 3,5 caractères.</p><p>Fonction 03 : lire des registres (adresse de début + nombre) ; 06 : écrire un registre ; réponse d\'<b>exception</b> : fonction + 0x80 puis code (01 fonction illégale, 02 adresse illégale, 03 valeur illégale). Un CRC faux = trame altérée, ignorée par le récepteur.</p>' }];
+  C.i2c = [{ t: 'Le bus I²C', h: '<p>Deux fils : <b>SCL</b> (horloge, fournie par le maître) et <b>SDA</b> (données bidirectionnelles), tous deux à <b>drain ouvert</b> avec <b>résistances de rappel</b> (typ. 4,7 kΩ au +3,3 V). <b>START</b> : SDA↓ pendant SCL = 1 ; <b>STOP</b> : SDA↑ pendant SCL = 1 ; sinon SDA change quand SCL = 0. Après START : 7 bits d\'<b>adresse</b> (MSB d\'abord) + bit <b>R/W</b>, puis un bit <b>ACK</b> (SDA tiré à 0 par l\'esclave) ; chaque octet est acquitté. Absence de réponse = <b>NACK</b>.</p><p>Vitesses : 100 kHz (standard), 400 kHz (rapide). Exemples : 0x48 capteur de température, 0x68 RTC, 0x3C afficheur OLED.</p>' }];
+  C.spi = [{ t: 'Le bus SPI', h: '<p>Quatre fils : <b>SCK</b> (horloge), <b>MOSI</b> (maître → esclave), <b>MISO</b> (esclave → maître), <b>CS</b> (sélection, actif à 0). Transmission <b>synchrone, full-duplex</b>, MSB en premier. Quatre modes selon <b>CPOL</b> (niveau de repos de SCK) et <b>CPHA</b> (échantillonnage au 1<sup>er</sup> ou 2<sup>e</sup> front) : mode 0 (0,0), 1 (0,1), 2 (1,0), 3 (1,1). Maître et esclave doivent utiliser le même mode, sinon les bits sont décalés. Plus rapide que l\'I²C (MHz) mais un CS par esclave.</p>' }];
   NS.coursFor = id => C[id] || [];
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -3666,6 +3677,416 @@ regScenario({
 
 </script>
 <script>
+/* tp_ic.js — TP « Circuits intégrés & numérique » : portes logiques, NE555, optocoupleur, MOSFET, dépannage logique */
+(function (g) {
+'use strict';
+const NS = g.NS; const { mk, near, regScenario } = NS;
+const CAT = '6 · Circuits intégrés & numérique';
+const R = (L, ref, x, y, v, rot, ex) => L.p('resistor', ref, x, y, Object.assign({ R: v, tol: 1, W: 0.25 }, ex || {}), rot);
+const noBurn = { label: 'Aucun composant n\'est détruit', run: c => c.anyBurnt().length === 0 };
+const rev = c => { c.sim.dirty = true; };
+/* fréquence et rapport cyclique d'une broche (franchissements du seuil), en avançant la simulation */
+function freqOf(c, ref, pin, thr, fGuess) {
+  const dt = 1 / (fGuess * 300), N = Math.round(8 / (fGuess * dt)); let prev = null, hi = 0; const ed = [];
+  for (let i = 0; i < N; i++) { c.sim.advance(dt); const v = c.v(ref, pin); if (v >= thr) hi++; if (prev !== null && prev < thr && v >= thr) ed.push(c.sim.eng.t); prev = v; }
+  const f = ed.length >= 3 ? (ed.length - 1) / (ed[ed.length - 1] - ed[0]) : 0; return { f, duty: hi / N, edges: ed.length };
+}
+
+/* ============================================================ F1 — portes logiques */
+const GATES = ['AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR'];
+const FAM = ['HC', 'LS'];
+regScenario({
+  id: 'portes', cat: CAT, diff: 2, title: 'Portes logiques : tables de vérité, alimentation, CMOS / TTL', level: 'Bac Pro CIEL (première)', duration: '1 h 15', variants: 6, variantLabel: '↻ Autre porte', settle: 0.05,
+  refs: 'Logique combinatoire ; portes ET, OU, NON, OU exclusif ; niveaux logiques ; familles CMOS et TTL',
+  desc: 'Une porte logique à deux entrées est câblée à deux interrupteurs et à une LED, mais <b>le circuit intégré n\'est pas encore alimenté</b>. Alimentez-le, établissez sa table de vérité et identifiez sa fonction.',
+  objectives: ['Alimenter correctement un circuit intégré logique (VCC, GND)', 'Établir la table de vérité d\'une porte par des mesures', 'Distinguer niveau haut / niveau bas et connaître les niveaux CMOS et TTL', 'Savoir qu\'une entrée ne doit jamais rester « en l\'air »'],
+  steps: ['Repérez la porte U1 (double-clic : fonction et famille). Observez les <b>broches VCC et GND</b> : rien n\'y est relié. Que vaut la sortie Y ?', 'Reliez <b>VCC au +5 V</b> de l\'alimentation et <b>GND à la masse</b>.', 'Cliquez sur SW1 et SW2 pour appliquer les 4 combinaisons (interrupteur fermé = niveau haut = 5 V, ouvert = niveau bas grâce à la résistance de rappel ; 470 Ω en TTL, 10 kΩ en CMOS). Mesurez la tension de Y avec le multimètre et notez l\'état de la LED.', 'Complétez la table de vérité, identifiez la fonction, puis répondez aux questions.'],
+  questions: [
+    { q: 'Quelle fonction logique réalise U1 ?', type: 'choice', options: GATES, correct: c => GATES.indexOf(c.part('U1').p.fn) },
+    { q: 'A = 0, B = 0 : la sortie Y est…', type: 'choice', options: ['au niveau bas (≈ 0 V)', 'au niveau haut'], correct: c => NS.GATEFN[c.part('U1').p.fn](0, 0) ? 1 : 0 },
+    { q: 'A = 0, B = 1 : la sortie Y est…', type: 'choice', options: ['au niveau bas (≈ 0 V)', 'au niveau haut'], correct: c => NS.GATEFN[c.part('U1').p.fn](0, 1) ? 1 : 0 },
+    { q: 'A = 1, B = 0 : la sortie Y est…', type: 'choice', options: ['au niveau bas (≈ 0 V)', 'au niveau haut'], correct: c => NS.GATEFN[c.part('U1').p.fn](1, 0) ? 1 : 0 },
+    { q: 'A = 1, B = 1 : la sortie Y est…', type: 'choice', options: ['au niveau bas (≈ 0 V)', 'au niveau haut'], correct: c => NS.GATEFN[c.part('U1').p.fn](1, 1) ? 1 : 0 },
+    { q: 'Le circuit est alimenté et SW1, SW2 sont ouverts (entrées à 0) : tension mesurée sur l\'entrée A (en V)', answer: c => c.v('U1', 'A'), abs: 0.3, unit: 'V' },
+    { q: 'Une entrée de porte CMOS (74HC) laissée « en l\'air » (non reliée) est…', type: 'choice', options: ['lue comme un 0', 'lue comme un 1', 'indéterminée : c\'est interdit, il faut la relier (résistance de rappel)'], correct: 2 },
+  ],
+  build(c, o) {
+    const v = (o && o.variant) || 0; const L = mk(c);
+    L.p('psu', 'AL1', 100, 200, { V: 5, Ilim: 0.2 }); L.p('ground', 'GND1', 100, 340);
+    L.p('gate', 'U1', 520, 200, { fn: GATES[v % 6], fam: FAM[v % 2] });
+    L.p('switch', 'SW1', 300, 140, { closed: false }); L.p('switch', 'SW2', 300, 260, { closed: false });
+    const rp = FAM[v % 2] === 'LS' ? 470 : 10000; R(L, 'RA', 380, 100, rp, 90); R(L, 'RB', 380, 300, rp, 90);
+    R(L, 'R1', 680, 200, 330); L.p('led', 'D1', 780, 240, { model: 'LED verte' }, 90); L.p('multimeter', 'MM1', 900, 200, { mode: 'VDC' });
+    L.w('AL1', '+', 'SW1', 'A'); L.w('AL1', '+', 'SW2', 'A'); L.w('SW1', 'B', 'U1', 'A'); L.w('SW2', 'B', 'U1', 'B');
+    L.w('RA', 'A', 'U1', 'A'); L.w('RB', 'A', 'U1', 'B'); L.w('GND1', 'G', 'RA', 'B'); L.w('GND1', 'G', 'RB', 'B'); L.w('GND1', 'G', 'AL1', '−');
+    L.w('U1', 'Y', 'R1', 'A'); L.w('R1', 'B', 'D1', 'A'); L.w('D1', 'K', 'GND1', 'G');
+  },
+  solve(c) { const L = mk(c); L.w('AL1', '+', 'U1', 'VCC'); L.w('GND1', 'G', 'U1', 'GND'); L.w('MM1', 'V/Ω/A', 'U1', 'Y'); L.w('MM1', 'COM', 'GND1', 'G'); },
+  checks: [
+    { label: 'U1 est alimenté : VCC = 5 V par rapport à GND', run: c => near(c.vd('U1', 'VCC', 'U1', 'GND'), 5, 0.06) },
+    { label: 'La broche GND de U1 est reliée à la masse', run: c => Math.abs(c.v('U1', 'GND')) < 0.05 },
+    { label: 'Les entrées sont à un niveau défini (pas « en l\'air »)', run: c => [c.v('U1', 'A'), c.v('U1', 'B')].every(x => x < 0.5 || x > 4.5) },
+    { label: 'Un voltmètre est câblé sur la sortie Y', run: c => c.voltmeterAcross('U1', 'Y', 'GND1', 'G') },
+    { label: 'La sortie respecte la table de vérité (SW1 = SW2 = 1)', run: c => { c.part('SW1').p.closed = true; c.part('SW2').p.closed = true; rev(c); c.settle(0.05); const y = NS.GATEFN[c.part('U1').p.fn](1, 1); return y ? c.v('U1', 'Y') > 2.8 : c.v('U1', 'Y') < 0.5; } },
+    noBurn],
+  correction: '<p>Un circuit intégré logique doit être <b>alimenté</b> : VCC au +5 V, GND à la masse. Sans cela, sa sortie est indéterminée. Table de vérité de la porte étudiée : voir la fonction dans le symbole (ET / NON-ET / OU / NON-OU / OU exclusif / son complément).</p><p><b>Niveaux :</b> CMOS 74HC en 5 V : sortie ≈ 0 V ou 5 V ; TTL (74LS) : sortie haute ≈ 3,4 V seulement et une entrée en l\'air est lue « 1 ». Une entrée CMOS non reliée est indéterminée (capte les parasites) : on utilise une <b>résistance de rappel</b> (pull-down 10 kΩ en CMOS). En <b>TTL</b>, une entrée au niveau bas <i>débite</i> ≈ 0,4 mA : avec 10 kΩ on aurait 4 V (niveau haut !), d\'où un pull-down de 470 Ω.</p>',
+});
+
+/* ============================================================ F2 — NE555 astable */
+const T5 = [
+  { f: 1000, C: 100e-9, R1: 1000, lab: '1 kHz' },
+  { f: 440, C: 100e-9, R1: 1000, lab: '440 Hz (la du diapason)' },
+  { f: 2000, C: 47e-9, R1: 1000, lab: '2 kHz' },
+  { f: 1, C: 47e-6, R1: 10000, lab: '1 Hz (clignotant)', led: true },
+];
+const r2of = t => (1.44 / (t.f * t.C) - t.R1) / 2;
+regScenario({
+  id: 'ne555', cat: CAT, diff: 3, title: 'NE555 en multivibrateur astable (4 fréquences)', level: 'Bac Pro CIEL (première / terminale)', duration: '1 h 30', variants: 4, variantLabel: '↻ Autre fréquence', settle: 0.02,
+  refs: 'Générateur de signaux ; temporisation ; NE555 ; période, fréquence, rapport cyclique',
+  desc: 'Le NE555 est câblé en <b>astable</b> : la sortie OUT oscille entre 0 et Vcc. La fréquence dépend de R1, R2 et C : f ≈ 1,44 / ((R1 + 2·R2)·C). Calculez R2 pour obtenir la fréquence demandée, puis vérifiez à l\'oscilloscope.',
+  objectives: ['Identifier les broches du NE555 (TRIG, THR, DIS, OUT, RESET, CTRL)', 'Dimensionner R2 à partir d\'une fréquence cible', 'Mesurer période, fréquence et rapport cyclique à l\'oscilloscope', 'Comprendre pourquoi le rapport cyclique est toujours supérieur à 50 %'],
+  steps: ['Lisez dans l\'énoncé la fréquence cible (variante affichée dans la question 1) et relevez R1 et C sur le schéma.', 'Calculez R2 = (1,44 / (f·C) − R1) / 2, puis réglez R2 (double-clic sur le composant).', 'Reliez la voie CH1 de l\'oscilloscope à la sortie <b>OUT</b> (GND de l\'oscilloscope à la masse) et ajustez la base de temps.', 'Mesurez période, fréquence et rapport cyclique. Comparez au calcul.', 'Observez aussi la tension aux bornes de C (CH2 sur THR) : entre quelles valeurs oscille-t-elle ?'],
+  questions: [
+    { q: c => 'Fréquence cible de cette variante : ' + T5[c.tp.variant % 4].lab + '. Valeur calculée de R2 (en Ω, tolérance large : valeur normalisée acceptée)', answer: c => r2of(T5[c.tp.variant % 4]), tol: 0.15, unit: 'Ω', hint: 'f = 1,44 / ((R1 + 2·R2)·C)' },
+    { q: 'Fréquence mesurée de la sortie (en Hz)', answer: c => freqOf(c, 'U1', 'OUT', c.v('U1', 'VCC') / 2, T5[c.tp.variant % 4].f).f, tol: 0.08, unit: 'Hz' },
+    { q: 'Période mesurée (en ms)', answer: c => 1000 / freqOf(c, 'U1', 'OUT', c.v('U1', 'VCC') / 2, T5[c.tp.variant % 4].f).f, tol: 0.08, unit: 'ms' },
+    { q: 'Rapport cyclique de la sortie (en %)', answer: c => { const a = c.el('R1').value(), b = c.el('R2').value(); return 100 * (a + b) / (a + 2 * b); }, tol: 0.06, unit: '%', hint: 'α = (R1 + R2) / (R1 + 2·R2)' },
+    { q: 'Entre quelles valeurs oscille la tension aux bornes du condensateur ?', type: 'choice', options: ['0 et Vcc', 'Vcc/3 et 2·Vcc/3', '0 et Vcc/3', '2·Vcc/3 et Vcc'], correct: 1 },
+    { q: 'Pourquoi le rapport cyclique est-il toujours > 50 % avec ce montage ?', type: 'choice', options: ['Parce que le NE555 est asymétrique', 'Parce que C se charge par R1 + R2 mais se décharge seulement par R2', 'Parce que R1 est toujours plus grande que R2', 'Parce que la tension d\'alimentation n\'est pas stable'], correct: 1 },
+  ],
+  build(c, o) {
+    const t = T5[((o && o.variant) || 0) % 4]; const L = mk(c);
+    L.p('psu', 'AL1', 100, 200, { V: 5, Ilim: 0.3 }); L.p('ground', 'GND1', 100, 360);
+    L.p('timer555', 'U1', 500, 220, { model: 'NE555' });
+    R(L, 'R1', 380, 120, t.R1, 90); R(L, 'R2', 380, 220, 1000, 90); L.p('capacitor', 'C1', 340, 330, { C: t.C, esr: 0.001, tol: 2, Vmax: 25 }, 90);
+    L.p('scope', 'OSC1', 780, 460, { tdiv: t.f >= 100 ? (t.f > 1500 ? 5e-4 : 1e-3) : 0.2, v1: 2, v2: 2, on1: true, on2: true, trig: 2.5, src: 1, edge: 'up' });
+    L.w('AL1', '+', 'U1', 'VCC'); L.w('AL1', '+', 'U1', 'RESET'); L.w('AL1', '+', 'R1', 'A'); L.w('R1', 'B', 'U1', 'DIS'); L.w('U1', 'DIS', 'R2', 'A'); L.w('R2', 'B', 'U1', 'THR'); L.w('U1', 'THR', 'U1', 'TRIG'); L.w('U1', 'THR', 'C1', 'A');
+    L.w('GND1', 'G', 'U1', 'GND'); L.w('GND1', 'G', 'C1', 'B'); L.w('GND1', 'G', 'AL1', '−');
+    if (t.led) { R(L, 'R3', 660, 160, 470); L.p('led', 'D1', 740, 200, { model: 'LED rouge' }, 90); L.w('U1', 'OUT', 'R3', 'A'); L.w('R3', 'B', 'D1', 'A'); L.w('D1', 'K', 'GND1', 'G'); }
+  },
+  solve(c, ctx, v) { const L = mk(c); c.byRef('R2').p.R = r2of(T5[v % 4]); L.w('OSC1', 'CH1', 'U1', 'OUT'); L.w('OSC1', 'CH2', 'U1', 'THR'); L.w('OSC1', 'GND', 'GND1', 'G'); },
+  checks: [
+    { label: 'Le NE555 est alimenté et oscille', run: c => freqOf(c, 'U1', 'OUT', 2.5, T5[c.tp.variant % 4].f).f > 0 },
+    { label: 'La fréquence de sortie est celle demandée (± 10 %)', run: c => { const t = T5[c.tp.variant % 4]; return near(freqOf(c, 'U1', 'OUT', 2.5, t.f).f, t.f, 0.1); } },
+    { label: 'Oscilloscope : CH1 câblée sur la sortie OUT, GND à la masse', run: c => c.scopeWired(null, ['U1', 'OUT']) },
+    noBurn],
+  correction: '<p>Le NE555 charge C par R1 + R2 jusqu\'à 2·Vcc/3 (seuil THR), puis le décharge par R2 jusqu\'à Vcc/3 (seuil TRIG). t<sub>H</sub> = 0,69·(R1 + R2)·C ; t<sub>L</sub> = 0,69·R2·C ; T = t<sub>H</sub> + t<sub>L</sub> d\'où <b>f = 1,44 / ((R1 + 2·R2)·C)</b>. Rapport cyclique α = (R1 + R2)/(R1 + 2·R2) &gt; 50 %.</p><p>Valeurs : 1 kHz → R2 ≈ 6,7 kΩ ; 440 Hz → ≈ 15,9 kΩ ; 2 kHz → ≈ 7,2 kΩ (C = 47 nF) ; 1 Hz (C = 47 µF, R1 = 10 kΩ) → ≈ 10,3 kΩ. Les valeurs normalisées (E12) donnent un écart de quelques %, compatible avec la tolérance des composants.</p>',
+});
+
+/* ============================================================ F3 — optocoupleur */
+const OPT = [
+  { model: 'PC817', RC: 2200 }, { model: 'PC817C', RC: 2200 }, { model: '4N25', RC: 10000 },
+];
+const raOf = o => { const ctr = NS.LIB.OPTOS[o.model].CTR, ic = (12 - 0.2) / o.RC; return (5 - 1.2) / (2 * ic / ctr); };
+regScenario({
+  id: 'opto', cat: CAT, diff: 3, title: 'Optocoupleur : isoler une commande 5 V d\'une charge 12 V', level: 'Bac Pro CIEL (première / terminale)', duration: '1 h 15', variants: 3, variantLabel: '↻ Autre optocoupleur', settle: 0.1,
+  refs: 'Isolation galvanique ; optocoupleur ; commutation ; rapport de transfert en courant (CTR)',
+  desc: 'Un signal logique 5 V (côté commande) doit piloter un circuit alimenté en 12 V (côté puissance) <b>sans liaison électrique</b> entre les deux. L\'optocoupleur transmet l\'information par la lumière. Dimensionnez la résistance R<sub>A</sub> de la LED d\'entrée pour que le phototransistor soit <b>saturé</b> (interrupteur fermé).',
+  objectives: ['Identifier LED d\'entrée (A, K) et phototransistor de sortie (C, E)', 'Calculer R<sub>A</sub> à partir du CTR pour saturer le transistor de sortie', 'Mesurer I<sub>F</sub>, I<sub>C</sub>, V<sub>CE</sub> et en déduire le CTR', 'Vérifier l\'isolation galvanique (masses séparées)'],
+  steps: ['Repérez les deux parties : <b>entrée</b> (IN, R<sub>A</sub>, LED de l\'opto) et <b>sortie</b> (AL2 12 V, R<sub>C</sub>, phototransistor).', 'Calculez I<sub>C,sat</sub> = (12 − 0,2)/R<sub>C</sub>, puis le courant I<sub>F</sub> nécessaire = 2·I<sub>C,sat</sub>/CTR (coefficient de sur-saturation 2).', 'Calculez R<sub>A</sub> = (5 − V<sub>F</sub>)/I<sub>F</sub> avec V<sub>F</sub> ≈ 1,2 V, réglez R<sub>A</sub> et vérifiez V<sub>CE</sub> &lt; 0,4 V entrée à 5 V.', 'Mettez l\'entrée IN à 0 V : la sortie doit être bloquée (V<sub>C</sub> ≈ 12 V).', 'Mesurez I<sub>F</sub>, I<sub>C</sub> et V<sub>CE</sub> à l\'aide des multimètres et répondez.'],
+  questions: [
+    { q: 'Valeur de R<sub>A</sub> calculée (en Ω, tolérance large : valeur normalisée proche acceptée)', answer: c => raOf(OPT[c.tp.variant % 3]), tol: 0.4, unit: 'Ω' },
+    { q: 'Courant dans la LED d\'entrée I<sub>F</sub> (en mA), entrée à 5 V', answer: c => Math.abs(c.el('OC1').I) * 1000, tol: 0.08, unit: 'mA' },
+    { q: 'Courant collecteur I<sub>C</sub> du phototransistor (en mA), entrée à 5 V', answer: c => Math.abs(c.el('RC').I) * 1000, tol: 0.08, unit: 'mA' },
+    { q: 'Tension V<sub>CE</sub> du phototransistor saturé (en V)', answer: c => Math.abs(c.vd('OC1', 'C', 'OC1', 'E')), abs: 0.15, unit: 'V' },
+    { q: 'Le CTR (Current Transfer Ratio) est défini par…', type: 'choice', options: ['CTR = I<sub>C</sub> / I<sub>F</sub> (en mode linéaire)', 'CTR = V<sub>CE</sub> / V<sub>F</sub>', 'CTR = I<sub>F</sub> / I<sub>C</sub>', 'CTR = P<sub>sortie</sub> / P<sub>entrée</sub>'], correct: 0 },
+    { q: 'Quel est l\'intérêt principal de l\'optocoupleur ?', type: 'choice', options: ['Amplifier fortement le signal', 'Isoler galvaniquement la commande de la puissance', 'Redresser le courant', 'Stabiliser la tension'], correct: 1 },
+  ],
+  build(c, o) {
+    const t = OPT[((o && o.variant) || 0) % 3]; const L = mk(c);
+    L.p('psu', 'IN', 100, 160, { V: 5, Ilim: 0.1 }); L.p('ground', 'GND1', 100, 320);
+    R(L, 'RA', 300, 120, 22000); L.p('opto', 'OC1', 500, 200, { model: t.model });
+    L.p('psu', 'AL2', 760, 160, { V: 12, Ilim: 0.2 }); R(L, 'RC', 640, 120, t.RC);
+    L.p('multimeter', 'MM1', 560, 340, { mode: 'VDC' });
+    L.w('IN', '+', 'RA', 'A'); L.w('RA', 'B', 'OC1', 'A'); L.w('OC1', 'K', 'GND1', 'G'); L.w('IN', '−', 'GND1', 'G');
+    L.w('AL2', '+', 'RC', 'A'); L.w('RC', 'B', 'OC1', 'C'); L.w('OC1', 'E', 'AL2', '−');
+  },
+  solve(c, ctx, v) { c.byRef('RA').p.R = raOf(OPT[v % 3]); },
+  checks: [
+    { label: 'Entrée à 5 V : le phototransistor est saturé (V<sub>CE</sub> &lt; 0,4 V)', run: c => c.part('IN').p.V === 5 && Math.abs(c.vd('OC1', 'C', 'OC1', 'E')) < 0.4 },
+    { label: 'Le courant de LED I<sub>F</sub> reste raisonnable (2 à 30 mA)', run: c => { const i = Math.abs(c.el('OC1').I); return i > 0.002 && i < 0.03; } },
+    { label: 'Isolation galvanique : la masse de sortie n\'est pas reliée à la masse d\'entrée', run: c => c.net('AL2', '−') !== c.net('IN', '−') },
+    { label: 'Entrée à 0 V : la sortie est bloquée (V<sub>C</sub> ≈ 12 V)', run: c => { c.part('IN').p.V = 0; rev(c); c.settle(0.1); return c.vd('OC1', 'C', 'AL2', '−') > 11.5; } },
+    noBurn],
+  correction: '<p>La LED de l\'opto est une diode : R<sub>A</sub> fixe I<sub>F</sub> = (5 − 1,2)/R<sub>A</sub>. Le phototransistor se comporte comme un transistor dont le courant de base est la lumière : I<sub>C</sub> = CTR·I<sub>F</sub> <i>tant qu\'il n\'est pas saturé</i>. Pour fermer l\'interrupteur, on veut V<sub>CE</sub> ≈ 0,2 V, donc I<sub>C,sat</sub> = (12 − 0,2)/R<sub>C</sub> et on prend I<sub>F</sub> = 2·I<sub>C,sat</sub>/CTR.</p><p>PC817 (CTR ≈ 100 %, R<sub>C</sub> = 2,2 kΩ) → R<sub>A</sub> ≈ 360 Ω ; PC817C (CTR 250 %) → ≈ 900 Ω ; 4N25 (CTR 25 %, R<sub>C</sub> = 10 kΩ) → ≈ 400 Ω. Comme CTR varie de 1 à 3 d\'un exemplaire à l\'autre, on <b>surdimensionne I<sub>F</sub></b>. Les deux masses sont <i>séparées</i> : c\'est l\'isolation galvanique (tenue typique 5 kV).</p>',
+});
+
+/* ============================================================ F4 — MOSFET */
+const MF = [
+  { model: 'IRF540N', vg: 3.3, ok: ['IRLZ44N'], info: 'IRF540N : V<sub>GS(th)</sub> ≈ 3 V, non « logic-level »' },
+  { model: '2N7000', vg: 5, ok: ['IRF540N', 'IRLZ44N'], info: '2N7000 : limité à 200 mA' },
+];
+regScenario({
+  id: 'mosfet', cat: CAT, diff: 3, title: 'MOSFET de puissance : commande d\'une lampe 12 V par une sortie logique', level: 'Bac Pro CIEL (terminale)', duration: '1 h 15', variants: 2, variantLabel: '↻ Autre cas', settle: 0.2,
+  refs: 'Transistor MOSFET ; commutation ; tension de seuil ; R<sub>DS(on)</sub> ; interface logique / puissance',
+  desc: 'Une sortie logique (3,3 V ou 5 V selon la variante) doit allumer une lampe 12 V / 5 W à l\'aide d\'un MOSFET. Le montage fourni <b>ne fonctionne pas correctement</b> : lampe faible, transistor qui chauffe ou qui est détruit. Trouvez pourquoi et choisissez le MOSFET adapté.',
+  objectives: ['Comprendre la commande en tension d\'un MOSFET (V<sub>GS</sub>, V<sub>GS(th)</sub>)', 'Distinguer un MOSFET « logic-level » d\'un MOSFET standard', 'Vérifier courant maximal et puissance dissipée (V<sub>DS</sub>·I<sub>D</sub>)', 'Mesurer R<sub>DS(on)</sub> en commutation'],
+  steps: ['Fermez SW1 (commande à l\'état haut) : observez la lampe et V<sub>DS</sub> du transistor Q1. Relevez V<sub>GS</sub>.', 'Calculez le courant attendu dans la lampe (P/V ≈ 0,42 A) et comparez aux caractéristiques de Q1 (double-clic : référence). Quelle limite est dépassée ?', 'Remplacez Q1 par un MOSFET adapté (changez la référence) : il doit être <b>complètement passant</b> avec la tension de commande disponible et supporter 0,42 A.', 'Mesurez V<sub>DS</sub>, I<sub>D</sub>, la puissance dissipée dans Q1 puis R<sub>DS(on)</sub> = V<sub>DS</sub>/I<sub>D</sub>.', 'Ouvrez SW1 : la lampe doit s\'éteindre.'],
+  questions: [
+    { q: 'Tension de commande V<sub>GS</sub> appliquée (SW1 fermé), en V', answer: c => c.vd('Q1', 'G', 'Q1', 'S'), abs: 0.1, unit: 'V' },
+    { q: 'Tension V<sub>DS</sub> du MOSFET lorsque la lampe est allumée (en V)', answer: c => Math.abs(c.vd('Q1', 'D', 'Q1', 'S')), abs: 0.15, unit: 'V' },
+    { q: 'Courant dans la lampe (en mA)', answer: c => Math.abs(c.I('LP1')) * 1000, tol: 0.08, unit: 'mA' },
+    { q: 'Puissance dissipée dans le MOSFET (en mW)', answer: c => Math.abs(c.vd('Q1', 'D', 'Q1', 'S') * c.I('LP1')) * 1000, tol: 0.15, abs: 5, unit: 'mW' },
+    { q: 'Quel type de MOSFET faut-il pour une commande à 3,3 V ?', type: 'choice', options: ['Un MOSFET standard (V<sub>GS(th)</sub> ≈ 3-4 V)', 'Un MOSFET « logic-level » (V<sub>GS(th)</sub> ≈ 1-2 V, R<sub>DS(on)</sub> garanti à 4,5 V)', 'N\'importe lequel', 'Un MOSFET canal P obligatoirement'], correct: 1 },
+    { q: 'Un MOSFET est commandé par…', type: 'choice', options: ['un courant de grille', 'une tension grille-source (courant de grille quasi nul)', 'une tension drain-source', 'un courant de source'], correct: 1 },
+  ],
+  build(c, o) {
+    const t = MF[((o && o.variant) || 0) % 2]; const L = mk(c);
+    L.p('psu', 'AL1', 100, 160, { V: 12, Ilim: 2 }); L.p('psu', 'VG', 100, 380, { V: t.vg, Ilim: 0.05 }); L.p('ground', 'GND1', 100, 520);
+    L.p('lamp', 'LP1', 460, 160, { V: 12, P: 5 }, 90); L.p('mosfet', 'Q1', 460, 340, { model: t.model });
+    L.p('switch', 'SW1', 300, 340, { closed: true }); R(L, 'RP', 340, 440, 10000, 90);
+    L.w('AL1', '+', 'LP1', 'A'); L.w('LP1', 'B', 'Q1', 'D'); L.w('Q1', 'S', 'GND1', 'G'); L.w('VG', '+', 'SW1', 'A'); L.w('SW1', 'B', 'Q1', 'G'); L.w('RP', 'A', 'Q1', 'G'); L.w('RP', 'B', 'GND1', 'G'); L.w('AL1', '−', 'GND1', 'G'); L.w('VG', '−', 'GND1', 'G');
+  },
+  solve(c, ctx, v) { c.byRef('Q1').p.model = 'IRLZ44N'; NS.replacePart(c.byRef('Q1')); },
+  checks: [
+    { label: 'Commande à l\'état haut : MOSFET saturé (V<sub>DS</sub> &lt; 0,5 V) et lampe allumée (≈ 0,42 A)', run: c => { c.part('SW1').p.closed = true; rev(c); c.settle(0.2); return Math.abs(c.vd('Q1', 'D', 'Q1', 'S')) < 0.5 && near(Math.abs(c.I('LP1')), 0.42, 0.2); } },
+    { label: 'Le MOSFET ne dissipe presque rien (&lt; 0,5 W)', run: c => Math.abs(c.vd('Q1', 'D', 'Q1', 'S') * c.I('LP1')) < 0.5 },
+    { label: 'Aucun composant n\'est détruit', run: c => c.anyBurnt().length === 0 },
+    { label: 'SW1 ouvert : la lampe est éteinte', run: c => { c.part('SW1').p.closed = false; rev(c); c.settle(0.2); return Math.abs(c.I('LP1')) < 0.005; } },
+  ],
+  correction: '<p>Un MOSFET est commandé par la <b>tension V<sub>GS</sub></b> : en dessous du seuil V<sub>GS(th)</sub> il est bloqué, au-delà il conduit. Pour être <i>vraiment</i> saturé (R<sub>DS(on)</sub> faible), il faut V<sub>GS</sub> bien au-dessus du seuil : 10 V pour un MOSFET standard (IRF540N), 4,5 V seulement pour un <b>logic-level</b> (IRLZ44N).</p><p><b>Cas 1</b> : IRF540N commandé en 3,3 V → à peine au-dessus du seuil (≈ 3 V) : forte V<sub>DS</sub>, la lampe reste faible et le transistor chauffe. Solution : IRLZ44N. <b>Cas 2</b> : 2N7000 (I<sub>D,max</sub> = 200 mA) pour une lampe de 420 mA : surcharge, destruction. Solution : IRF540N (V<sub>GS</sub> = 5 V suffit ici) ou IRLZ44N.</p><p>R<sub>DS(on)</sub> = V<sub>DS</sub>/I<sub>D</sub> de l\'ordre de quelques dizaines de mΩ : dissipation ≈ R·I² ≈ 10 mW.</p>',
+});
+
+/* ============================================================ F5 — dépannage logique */
+const DL = [
+  { ref: 'U1', fault: 'stuck0', nature: 0, sym: 'La LED reste allumée en permanence, quelles que soient les positions de SW1 et SW2.', info: 'Sortie de U1 bloquée à 0' },
+  { ref: 'U1', fault: 'stuck1', nature: 0, sym: 'La LED reste éteinte, même avec SW1 et SW2 fermés.', info: 'Sortie de U1 bloquée à 1' },
+  { ref: 'U2', fault: 'dead', nature: 0, sym: 'La LED reste éteinte, sortie de U2 à 0 V même avec une entrée correcte.', info: 'Inverseur U2 hors service' },
+  { cut: ['AL1', '+', 'U1', 'VCC'], nature: 2, any: ['AL1', 'U1'], sym: 'La LED reste éteinte. Le +5 V est bien présent sur l\'alimentation.', info: 'Fil d\'alimentation VCC de U1 coupé' },
+  { ref: 'R1', fault: 'open', nature: 0, sym: 'La LED reste éteinte alors que la sortie de U2 est bien à 5 V.', info: 'R1 coupée' },
+];
+const NATD = ['Composant défectueux (hors service / sortie bloquée / coupé)', 'Court-circuit', 'Connexion coupée (fil, soudure)'];
+regScenario({
+  id: 'dep_log', cat: '4 · Dépannage', diff: 3, title: 'Dépannage d\'une platine logique NAND + inverseur (5 pannes)', level: 'Bac Pro CIEL (terminale)', duration: '1 h 30', variants: 5, variantLabel: '↻ Autre panne', settle: 0.05,
+  refs: 'Maintenance ; recherche de panne ; logique combinatoire ; alimentation des circuits intégrés',
+  faultInfo: v => DL[v % DL.length].info,
+  symptom: v => DL[v % DL.length].sym,
+  desc: 'Une platine logique combine une porte NAND (U1) et un inverseur (U2) : la LED doit s\'allumer <b>uniquement quand SW1 et SW2 sont fermés</b> (fonction ET). Elle ne fonctionne plus. Localisez la panne par des mesures de niveaux logiques à l\'entrée et à la sortie de chaque étage, puis réparez.',
+  objectives: ['Suivre un signal logique de bloc en bloc (entrées → U1 → U2 → LED)', 'Reconnaître une sortie bloquée, une alimentation absente, un composant coupé', 'Contrôler la table de vérité complète après réparation'],
+  steps: ['<b>Constat</b> : testez les 4 combinaisons de SW1, SW2 et notez la LED.', '<b>Mesures</b> : VCC de U1 et U2, niveau de la sortie de U1 (NAND) et de U2 (NOT).', '<b>Localisation</b> : quel étage ne suit pas sa table de vérité ?', '<b>Réparation</b> : remplacez le composant défectueux (clic droit) ou rétablissez le fil coupé.', '<b>Contrôle</b> : vérifiez les 4 combinaisons.'],
+  questions: [
+    { q: 'Quel élément est défectueux ? (pour une connexion coupée, indiquer l\'un des deux éléments reliés)', type: 'part', correct: c => { const f = DL[c.tp.variant % DL.length]; return f.any || f.ref; } },
+    { q: 'Nature de la panne', type: 'choice', options: NATD, correct: c => DL[c.tp.variant % DL.length].nature },
+    { q: 'Décrivez les mesures qui vous ont permis de conclure.', type: 'text' },
+  ],
+  build(c, o) {
+    const L = mk(c); L.p('psu', 'AL1', 100, 200, { V: 5, Ilim: 0.2 }); L.p('ground', 'GND1', 100, 340);
+    L.p('switch', 'SW1', 280, 140, { closed: true }); L.p('switch', 'SW2', 280, 260, { closed: true }); R(L, 'RA', 340, 100, 10000, 90); R(L, 'RB', 340, 300, 10000, 90);
+    L.p('gate', 'U1', 500, 200, { fn: 'NAND', fam: 'HC' }); L.p('inv', 'U2', 700, 200, { fn: 'NOT', fam: 'HC' }); R(L, 'R1', 860, 200, 330); L.p('led', 'D1', 940, 240, { model: 'LED verte' }, 90); L.p('multimeter', 'MM1', 600, 360, { mode: 'VDC' });
+    L.w('AL1', '+', 'SW1', 'A'); L.w('AL1', '+', 'SW2', 'A'); L.w('SW1', 'B', 'U1', 'A'); L.w('SW2', 'B', 'U1', 'B'); L.w('RA', 'A', 'U1', 'A'); L.w('RB', 'A', 'U1', 'B'); L.w('GND1', 'G', 'RA', 'B'); L.w('GND1', 'G', 'RB', 'B');
+    L.w('AL1', '+', 'U1', 'VCC'); L.w('AL1', '+', 'U2', 'VCC'); L.w('GND1', 'G', 'U1', 'GND'); L.w('GND1', 'G', 'U2', 'GND'); L.w('U1', 'Y', 'U2', 'A'); L.w('U2', 'Y', 'R1', 'A'); L.w('R1', 'B', 'D1', 'A'); L.w('D1', 'K', 'GND1', 'G'); L.w('AL1', '−', 'GND1', 'G');
+    const f = DL[((o && o.variant) || 0) % DL.length]; if (f.cut) NS.cutWire(c, ...f.cut); else c.byRef(f.ref).fault = f.fault;
+  },
+  solve(c, ctx, v) { const f = DL[v % DL.length]; if (f.cut) mk(c).w(...f.cut); else NS.replacePart(c.byRef(f.ref)); },
+  checks: [
+    { label: 'Table de vérité ET respectée : LED allumée uniquement pour SW1 = SW2 = 1', run: c => { let ok = true; for (const [a, b] of [[1, 1], [1, 0], [0, 1], [0, 0]]) { c.part('SW1').p.closed = !!a; c.part('SW2').p.closed = !!b; rev(c); c.settle(0.05); const on = Math.abs(c.I('D1')) > 0.003; if (on !== !!(a && b)) ok = false; } return ok; } },
+    noBurn,
+    { label: 'Dépannage ciblé (réparation effectuée, pas de remplacement inutile)', run: c => { const f = DL[c.tp.variant % DL.length]; return c.c.parts.every(p => (f.cut ? !(p.replaced > 0) : (p.ref === f.ref ? p.replaced >= 1 : !(p.replaced > 0)))); } },
+  ],
+  correction: '<p>On suit le signal : entrées de U1 (niveaux 0/1 selon SW1, SW2) → sortie de U1 (NAND : 0 seulement si A = B = 1) → sortie de U2 (NOT) → LED. <b>Sortie bloquée</b> : le niveau ne change plus quand les entrées changent. <b>VCC absent</b> : sortie à 0 V (ou indéterminée) alors que les entrées sont correctes — on mesure VCC <i>sur la broche du circuit</i>, pas seulement sur l\'alimentation. <b>R1 coupée</b> : sortie de U2 correcte (5 V) mais pas de courant dans la LED.</p>',
+});
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* tp_com.js — TP « Communication série » : analyse de trames à l'analyseur logique (UART / RS-232, Modbus RTU / RS-485, I²C, SPI) */
+(function (g) {
+'use strict';
+const NS = g.NS; const { mk, regScenario } = NS; const P = NS.PROTO;
+const CAT = '7 · Communication série';
+const R = (L, ref, x, y, v, rot) => L.p('resistor', ref, x, y, { R: v, tol: 1, W: 0.25 }, rot);
+const noBurn = { label: 'Aucun composant n\'est détruit', run: c => c.anyBurnt().length === 0 };
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+const hex2 = v => '0x' + v.toString(16).toUpperCase().padStart(2, '0');
+
+/* ---------- aides communes ---------- */
+const LA = c => c.part('LA').p;
+const ring = c => { const e = c.el('LA'); return e && e.s && e.s.ring && e.s.ring.n > 4 ? e.s.ring : null; };
+const evs = (c, ch, ch2) => { const r = ring(c); return r ? P.ringEvents(r, ch, LA(c).thr, ch2) : []; };
+const tEnd = c => { const r = ring(c); return r ? r.at(r.n - 1) : 0; };
+const sync = c => { const r = ring(c); return !!r && r.n >= r.cap; };
+/* voie de l'analyseur câblée sur la broche donnée (−1 si aucune) */
+const chOf = (c, ref, pin) => { const n = c.net(ref, pin); if (n === 0) return -1; for (let k = 0; k < 8; k++) if (c.net('LA', 'D' + k) === n) return k; return -1; };
+const laGnd = c => c.net('LA', 'GND') === 0;
+const wiredLbl = pins => 'Analyseur logique : ' + pins + ' câblées, GND à la masse';
+function gnd(L, ref, pin) { L.w(ref, pin, 'GND1', 'G'); }
+const laPart = L => L.p('logic', 'LA', 640, 420, { tdiv: 1e-3, thr: 1.65 });
+const COMMON = { settle: 0.5 };
+const proto = (c, name) => LA(c).proto === name;
+
+/* ============================================================ G1 — UART / RS-232 */
+const U = [
+  { baud: 9600, bits: 8, parity: 'N', stop: 1, level: 'ttl', vhi: 5, msg: 'Bonjour\\r\\n', lab: 'UART TTL 5 V' },
+  { baud: 19200, bits: 7, parity: 'E', stop: 1, level: 'ttl', vhi: 5, msg: 'T=23C\\r\\n', lab: 'UART TTL 5 V' },
+  { baud: 4800, bits: 8, parity: 'N', stop: 2, level: 'ttl', vhi: 3.3, msg: 'OK\\r\\n', lab: 'UART TTL 3,3 V' },
+  { baud: 9600, bits: 8, parity: 'N', stop: 1, level: 'rs232', vhi: 5, vrs: 12, msg: 'RS232\\r\\n', lab: 'RS-232 ±12 V' },
+  { baud: 115200, bits: 8, parity: 'O', stop: 1, level: 'ttl', vhi: 3.3, msg: 'AT\\r\\n', lab: 'UART TTL 3,3 V' },
+];
+const uv = c => U[c.tp.variant % U.length];
+const uartDecode = c => { const p = LA(c), r = ring(c); if (!r) return []; let ev = evs(c, p.chA); if (p.inv) ev = P.invert(ev); return P.uartDecode(ev, { baud: p.baud, bits: p.bits, parity: p.parity, stop: p.stop, sync: sync(c) }, tEnd(c)); };
+regScenario({
+  id: 'uart', cat: CAT, diff: 3, title: 'Analyse d\'une liaison série UART / RS-232 (5 variantes)', level: 'Bac Pro CIEL (première / terminale)', duration: '1 h 30', variants: 5, variantLabel: '↻ Autre liaison', ...COMMON,
+  refs: 'Transmission série asynchrone ; trame UART ; débit ; parité ; niveaux TTL et RS-232 ; analyseur logique',
+  desc: 'Un émetteur série (dont les paramètres sont <b>inconnus</b>) envoie un message de façon répétée. À l\'aide de l\'<b>analyseur logique</b>, retrouvez le débit, le format de la trame (bits de données, parité, stops) et le niveau électrique, puis configurez le décodeur pour lire le message.',
+  objectives: ['Relier un analyseur logique à une ligne série (voie + masse commune)', 'Mesurer la durée d\'un bit aux curseurs et en déduire le débit', 'Identifier le format de trame : start, bits de données (LSB d\'abord), parité, stop', 'Distinguer UART TTL / RS-232 (±12 V, logique inversée) et régler le seuil', 'Décoder le message ASCII'],
+  steps: ['Câblez l\'analyseur logique : <b>D0 → TX</b> de l\'émetteur et <b>GND → masse</b>. Double-clic sur LA pour l\'ouvrir.', 'Observez le chronogramme (AUTO règle la base de temps). Au repos la ligne est à quel niveau ? Quelle est la durée du plus petit créneau ? <b>T<sub>bit</sub> = 1/débit</b>.', 'Mesurez avec les curseurs, choisissez le décodeur <b>UART</b> et réglez le débit. Un débit faux donne du « bruit » ou des erreurs.', 'Ajustez nombre de bits, parité, stops jusqu\'à ce que le décodeur n\'indique <b>aucune erreur</b>. Si les niveaux sont ±12 V (RS-232) : seuil à 0 V et case « inversé ».', 'Lisez le message puis répondez aux questions.'],
+  questions: [
+    { q: 'Débit de la liaison (en bauds)', answer: c => uv(c).baud, tol: 0.03, unit: 'bauds' },
+    { q: 'Durée d\'un bit (en µs)', answer: c => 1e6 / uv(c).baud, tol: 0.05, unit: 'µs' },
+    { q: 'Nombre de bits de données par caractère', answer: c => uv(c).bits, abs: 0.1 },
+    { q: 'Parité utilisée', type: 'choice', options: ['Aucune', 'Paire', 'Impaire'], correct: c => 'NEO'.indexOf(uv(c).parity) },
+    { q: 'Nombre de bits de stop', answer: c => uv(c).stop, abs: 0.1 },
+    { q: 'Code ASCII (décimal) du premier caractère du message', answer: c => P.parseText(uv(c).msg)[0], abs: 0.1, hint: 'Lecture hexadécimale du décodeur : 0x42 = 66.' },
+    { q: 'Nombre de caractères du message (retour chariot et saut de ligne compris)', answer: c => P.parseText(uv(c).msg).length, abs: 0.1 },
+    { q: 'Durée d\'un caractère complet (start + données + parité + stop), en ms', answer: c => P.frameLen(uv(c)) * 1000, tol: 0.05, unit: 'ms' },
+    { q: 'Au repos, une ligne UART TTL est à…', type: 'choice', options: ['0 (niveau bas)', '1 (niveau haut)'], correct: 1 },
+    { q: 'En RS-232, un « 1 » logique correspond à une tension…', type: 'choice', options: ['positive de +3 à +15 V', 'négative de −3 à −15 V', 'nulle'], correct: 1 },
+  ],
+  build(c, o) {
+    const u = U[((o && o.variant) || 0) % U.length]; const L = mk(c);
+    L.p('fg_uart', 'TX', 200, 200, { on: true, baud: u.baud, bits: u.bits, parity: u.parity, stop: u.stop, level: u.level, vhi: u.vhi, vrs: u.vrs || 12, msg: u.msg, every: 0.08, hidden: true });
+    L.p('ground', 'GND1', 340, 340); gnd(L, 'TX', 'GND'); laPart(L);
+  },
+  solve(c, ctx, v) { const u = U[v % U.length]; const L = mk(c); L.w('LA', 'D0', 'TX', 'TX'); L.w('LA', 'GND', 'GND1', 'G'); Object.assign(c.byRef('LA').p, { proto: 'uart', chA: 0, baud: u.baud, bits: u.bits, parity: u.parity, stop: u.stop, tdiv: 1e-3 }); if (u.level === 'rs232') Object.assign(c.byRef('LA').p, { thr: 0, inv: true }); },
+  checks: [
+    { label: wiredLbl('D0…D7 sur TX'), run: c => chOf(c, 'TX', 'TX') >= 0 && laGnd(c) },
+    { label: 'Décodeur UART sélectionné sur la voie où TX est câblée', run: c => proto(c, 'uart') && LA(c).chA === chOf(c, 'TX', 'TX') },
+    { label: 'Débit réglé correctement (± 3 %)', run: c => Math.abs(LA(c).baud / uv(c).baud - 1) < 0.03 },
+    { label: 'Format de trame correct (bits de données, parité, stops)', run: c => { const u = uv(c), p = LA(c); return +p.bits === u.bits && p.parity === u.parity && +p.stop === u.stop; } },
+    { label: 'Niveaux logiques correctement interprétés (seuil, inversion RS-232)', run: c => { const p = LA(c); return uv(c).level === 'rs232' ? (p.inv && Math.abs(p.thr) < 1.5) : (!p.inv && p.thr > 0.5 && p.thr < uv(c).vhi * 0.7); } },
+    { label: 'Le message est décodé sans erreur', run: c => { const d = uartDecode(c); const exp = P.parseText(uv(c).msg); const b = d.map(x => x.err ? -1 : x.byte); for (let i = 0; i + exp.length <= b.length; i++) if (same(b.slice(i, i + exp.length), exp)) return true; return false; } },
+    noBurn],
+  correction: '<p>Une trame UART : <b>start</b> (0), <b>bits de données LSB en premier</b>, bit de <b>parité</b> éventuel, <b>stop(s)</b> (1). Le débit se lit sur le plus petit créneau : T<sub>bit</sub> = 1/débit (9600 bauds → 104 µs ; 115200 → 8,7 µs). Au repos la ligne TTL est à 1.</p><p><b>RS-232</b> : mêmes trames mais <b>niveaux ±12 V et logique inversée</b> (1 = tension négative) : il faut régler le seuil à 0 V et inverser pour décoder.</p><p>Solutions : 9600 8N1 « Bonjour » ; 19200 7E1 « T=23C » ; 4800 8N2 « OK » (3,3 V) ; RS-232 9600 8N1 « RS232 » ; 115200 8O1 « AT ». Une parité ou un format faux provoque des erreurs de décodage : c\'est la méthode pour <b>retrouver le format d\'une liaison inconnue</b>.</p>',
+});
+
+/* ============================================================ G2 — Modbus RTU / RS-485 */
+const M = [
+  { baud: 9600, parity: 'E', stop: 1, addr: 1, func: 3, reg: 0, qty: 2, regs: '230, 1013, 45, 12', lab: 'lecture de 2 registres' },
+  { baud: 19200, parity: 'N', stop: 2, addr: 5, func: 6, reg: 3, qty: 500, regs: '0, 0, 0, 0, 0', lab: 'écriture d\'un registre' },
+  { baud: 9600, parity: 'E', stop: 1, addr: 12, func: 3, reg: 1, qty: 3, regs: '10, 2500, 1, 77, 4', corrupt: true, lab: 'réponse corrompue' },
+  { baud: 19200, parity: 'E', stop: 1, addr: 7, func: 3, reg: 10, qty: 2, regs: '100, 200, 300', lab: 'registre inexistant' },
+];
+const mv = c => M[c.tp.variant % M.length];
+const mf = c => P.modbusFrames(mv(c));
+const mbInfo = c => { const m = mv(c), f = mf(c), rsp = f.rsp; const exc = (rsp[1] & 0x80) !== 0; return { addr: m.addr, func: m.func, reg: m.reg, exc, code: exc ? rsp[2] : 0, val: exc ? 0 : (m.func === 6 ? (rsp[4] << 8) | rsp[5] : (rsp[3] << 8) | rsp[4]) }; };
+const mbFrames = c => { const p = LA(c); if (!ring(c)) return []; return P.modbusDecode(evs(c, p.chB, p.chA), { baud: p.baud, parity: p.parity, stop: p.stop, sync: sync(c) }, tEnd(c)); };
+regScenario({
+  id: 'modbus', cat: CAT, diff: 4, title: 'Analyse d\'une trame Modbus RTU sur bus RS-485 (4 cas)', level: 'Bac Pro CIEL (terminale)', duration: '2 h', variants: 4, variantLabel: '↻ Autre échange', ...COMMON,
+  refs: 'Bus de terrain ; RS-485 différentiel ; protocole Modbus RTU ; adresse, fonction, registres, CRC16 ; analyse de trames',
+  desc: 'Un maître Modbus interroge un esclave sur une liaison <b>RS-485</b> (deux fils A et B, transmission différentielle). Capturez l\'échange à l\'analyseur logique, décodez la <b>requête</b> et la <b>réponse</b>, et diagnostiquez le résultat (réponse valide, CRC erroné ou exception).',
+  objectives: ['Comprendre la transmission différentielle RS-485 (A et B, niveau = A − B)', 'Décoder une trame Modbus RTU : adresse, code fonction, données, CRC16', 'Interpréter les fonctions 03 (lecture) et 06 (écriture)', 'Détecter une trame corrompue (CRC) ou une réponse d\'exception'],
+  steps: ['Câblez <b>D0 → A</b>, <b>D1 → B</b> et <b>GND → masse</b> sur l\'analyseur logique.', 'Sélectionnez le décodeur <b>Modbus RTU</b> : ligne A = D0, ligne B = D1. Le niveau logique est lu sur <b>A − B</b> : réglez le seuil près de <b>0 V</b>.', 'Trouvez le débit et la parité (le décodeur signale les erreurs de trame/parité). Les silences ≥ 3,5 caractères séparent les trames.', 'Relevez pour la requête : adresse, fonction, adresse du registre, quantité/valeur. Pour la réponse : données, ou code d\'exception, et état du CRC.', 'Répondez aux questions.'],
+  questions: [
+    { q: 'Adresse de l\'esclave interrogé', answer: c => mbInfo(c).addr, abs: 0.1 },
+    { q: 'Code fonction de la requête (décimal)', answer: c => mbInfo(c).func, abs: 0.1 },
+    { q: 'Adresse du premier registre concerné', answer: c => mbInfo(c).reg, abs: 0.1 },
+    { q: 'Valeur (décimale) du premier registre lu ou écrit (0 si la réponse est une exception)', answer: c => mbInfo(c).val, abs: 0.6 },
+    { q: 'Code d\'exception renvoyé par l\'esclave (0 s\'il n\'y en a pas)', answer: c => mbInfo(c).code, abs: 0.1 },
+    { q: 'Qualité de la réponse de l\'esclave', type: 'choice', options: ['Réponse normale, CRC correct', 'CRC erroné : trame corrompue', 'Réponse d\'exception (le registre n\'existe pas)'], correct: c => mv(c).corrupt ? 1 : (mbInfo(c).exc ? 2 : 0) },
+    { q: 'Débit du bus (en bauds)', answer: c => mv(c).baud, tol: 0.03, unit: 'bauds' },
+    { q: 'Pourquoi RS-485 utilise-t-il deux fils A et B (transmission différentielle) ?', type: 'choice', options: ['Pour transmettre deux bits en parallèle', 'Les parasites s\'ajoutent aux deux fils et s\'éliminent dans la différence A − B : bonne immunité sur de longues distances', 'Pour alimenter les esclaves', 'Pour doubler le débit'], correct: 1 },
+  ],
+  build(c, o) {
+    const L = mk(c); const m = M[((o && o.variant) || 0) % M.length];
+    L.p('fg_rs485', 'MB', 200, 220, { on: true, baud: m.baud, parity: m.parity, stop: m.stop, addr: m.addr, func: m.func, reg: m.reg, qty: m.qty, regs: m.regs, corrupt: !!m.corrupt, every: 0.3, hidden: true });
+    L.p('ground', 'GND1', 340, 360); gnd(L, 'MB', 'GND'); laPart(L);
+  },
+  solve(c, ctx, v) { const m = M[v % M.length]; const L = mk(c); L.w('LA', 'D0', 'MB', 'A'); L.w('LA', 'D1', 'MB', 'B'); L.w('LA', 'GND', 'GND1', 'G'); Object.assign(c.byRef('LA').p, { proto: 'modbus', chA: 0, chB: 1, baud: m.baud, parity: m.parity, stop: m.stop, thr: 0 }); },
+  checks: [
+    { label: wiredLbl('D0 sur A, D1 sur B'), run: c => chOf(c, 'MB', 'A') >= 0 && chOf(c, 'MB', 'B') >= 0 && chOf(c, 'MB', 'A') !== chOf(c, 'MB', 'B') && laGnd(c) },
+    { label: 'Décodeur Modbus RTU : lignes A et B sur les bonnes voies', run: c => proto(c, 'modbus') && LA(c).chA === chOf(c, 'MB', 'A') && LA(c).chB === chOf(c, 'MB', 'B') },
+    { label: 'Seuil différentiel adapté (≈ 0 V, signal ± 1,2 V)', run: c => Math.abs(LA(c).thr) < 0.6 },
+    { label: 'Débit et parité corrects', run: c => { const m = mv(c), p = LA(c); return Math.abs(p.baud / m.baud - 1) < 0.03 && p.parity === m.parity && +p.stop === m.stop; } },
+    { label: 'La requête du maître et la réponse de l\'esclave sont décodées', run: c => { const f = mbFrames(c), e = mf(c); return f.length >= 2 && f.slice(-2).some(x => same(x.bytes, e.req)) && f.slice(-2).some(x => same(x.bytes, e.rsp)); } },
+    noBurn],
+  correction: '<p><b>RS-485</b> : paire différentielle A/B ; l\'information est la tension <b>A − B</b> (≈ ±1,2 V ici autour de 2,5 V) : le décodeur compare les deux lignes. <b>Trame Modbus RTU</b> : adresse (1 octet) · fonction (1) · données · CRC16 (2, poids faible d\'abord). Fonction 03 : requête « adresse registre + quantité » ; réponse « nb d\'octets + valeurs (16 bits, poids fort d\'abord) ». Fonction 06 : écho de la requête. <b>Exception</b> : fonction | 0x80 suivie d\'un code (02 = adresse de donnée illégale). Un <b>CRC</b> faux signale une trame altérée (parasites, mauvais câblage).</p><p>Cas : lecture de 2 registres à l\'adresse 1 (230 puis 1013) ; écriture du registre 3 de l\'esclave 5 à 500 ; réponse corrompue (CRC faux) de l\'esclave 12 ; esclave 7 : lecture au registre 10 inexistant → exception 0x83 code 02.</p>',
+});
+
+/* ============================================================ G3 — I²C */
+const I = [
+  { freq: 100000, addr: 0x48, rw: 'W', data: '01 A5', ack: 'oui', pullup: '4k7', vhi: 3.3, lab: 'capteur de température, écriture' },
+  { freq: 400000, addr: 0x3C, rw: 'W', data: '00 AF', ack: 'oui', pullup: 'none', vhi: 3.3, lab: 'afficheur, résistances à câbler' },
+  { freq: 100000, addr: 0x68, rw: 'R', data: '12 34', ack: 'oui', pullup: '4k7', vhi: 3.3, lab: 'horloge RTC, lecture' },
+  { freq: 100000, addr: 0x27, rw: 'W', data: '0F', ack: 'non', pullup: '4k7', vhi: 3.3, lab: 'esclave absent' },
+];
+const iv = c => I[c.tp.variant % I.length];
+const i2cTr = c => { const p = LA(c); if (!ring(c)) return []; return P.i2cDecode(evs(c, p.chA), evs(c, p.chB)); };
+const hasPull = (c, ln) => { const n = c.net('I2C', ln), vs = c.net('AL1', '+'); return c.c.parts.some(p => p.type === 'resistor' && (() => { const a = c.net(p.ref, 'A'), b = c.net(p.ref, 'B'); const r = c.el(p.ref).value(); return r >= 1000 && r <= 20000 && ((a === n && b === vs) || (b === n && a === vs)); })()); };
+regScenario({
+  id: 'i2c', cat: CAT, diff: 4, title: 'Analyse d\'un bus I²C : adresse, ACK, résistances de rappel (4 cas)', level: 'Bac Pro CIEL (terminale)', duration: '1 h 45', variants: 4, variantLabel: '↻ Autre cas', ...COMMON,
+  refs: 'Bus série synchrone I²C ; START / STOP ; adresse 7 bits ; ACK / NACK ; sortie à drain ouvert ; résistances de rappel',
+  desc: 'Un maître I²C communique avec un esclave sur deux lignes : <b>SCL</b> (horloge) et <b>SDA</b> (données). Capturez la transaction, décodez adresse et données et diagnostiquez : esclave présent (ACK) ou absent (NACK) ? Certains cas demandent de câbler les <b>résistances de rappel</b> (bus à drain ouvert).',
+  objectives: ['Câbler l\'analyseur sur SCL et SDA', 'Reconnaître START (SDA↓ pendant SCL = 1), STOP, ACK / NACK', 'Décoder l\'adresse 7 bits et le bit R/W, puis les données', 'Comprendre pourquoi le bus I²C exige des résistances de rappel (pull-up)'],
+  steps: ['Câblez <b>D0 → SCL</b>, <b>D1 → SDA</b>, <b>GND → masse</b>. Si le bus est « à plat » (aucun signal haut), il manque des <b>résistances de rappel</b> : reliez SCL et SDA au +3,3 V par R<sub>P1</sub>, R<sub>P2</sub> (4,7 kΩ).', 'Décodeur <b>I²C</b> : SCL = D0, SDA = D1. Seuil 1,65 V.', 'Lisez : adresse 7 bits, bit R/W, ACK de l\'esclave, octets de données.', 'Mesurez la période de SCL pour en déduire la fréquence du bus.', 'Répondez aux questions.'],
+  questions: [
+    { q: 'Adresse 7 bits de l\'esclave (décimal)', answer: c => iv(c).addr, abs: 0.1, hint: 'Ex. 0x48 = 72.' },
+    { q: 'Premier octet envoyé après le START (adresse + R/W), en décimal', answer: c => (iv(c).addr << 1) | (iv(c).rw === 'R' ? 1 : 0), abs: 0.1 },
+    { q: 'Sens du transfert', type: 'choice', options: ['Écriture (le maître envoie des données)', 'Lecture (le maître reçoit des données)'], correct: c => iv(c).rw === 'R' ? 1 : 0 },
+    { q: 'Réponse à l\'adresse', type: 'choice', options: ['ACK : l\'esclave répond', 'NACK : personne ne répond à cette adresse'], correct: c => iv(c).ack === 'non' ? 1 : 0 },
+    { q: 'Nombre d\'octets de données transférés après l\'adresse', answer: c => iv(c).ack === 'non' ? 0 : P.parseHex(iv(c).data).length, abs: 0.1 },
+    { q: 'Valeur (décimale) du premier octet de données (0 s\'il n\'y en a pas)', answer: c => iv(c).ack === 'non' ? 0 : P.parseHex(iv(c).data)[0], abs: 0.1 },
+    { q: 'Fréquence de l\'horloge SCL (en kHz)', answer: c => iv(c).freq / 1000, tol: 0.06, unit: 'kHz' },
+    { q: 'Pourquoi SCL et SDA ont-elles besoin de résistances de rappel ?', type: 'choice', options: ['Pour limiter le courant dans les LED', 'Les sorties sont à drain ouvert : elles ne savent que tirer la ligne à 0, la résistance la ramène à 1', 'Pour filtrer les parasites', 'Pour adapter l\'impédance'], correct: 1 },
+  ],
+  build(c, o) {
+    const m = I[((o && o.variant) || 0) % I.length]; const L = mk(c);
+    L.p('fg_i2c', 'I2C', 200, 220, { on: true, freq: m.freq, addr: m.addr, rw: m.rw, data: m.data, ack: m.ack, pullup: m.pullup, vhi: m.vhi, every: 0.05, hidden: true });
+    L.p('ground', 'GND1', 340, 380); gnd(L, 'I2C', 'GND'); laPart(L);
+    if (m.pullup === 'none') { L.p('psu', 'AL1', 80, 400, { V: 3.3, Ilim: 0.1 }); L.w('AL1', '−', 'GND1', 'G'); R(L, 'RP1', 360, 80, 4700, 90); R(L, 'RP2', 440, 80, 4700, 90); }
+  },
+  solve(c, ctx, v) { const m = I[v % I.length]; const L = mk(c); L.w('LA', 'D0', 'I2C', 'SCL'); L.w('LA', 'D1', 'I2C', 'SDA'); L.w('LA', 'GND', 'GND1', 'G'); Object.assign(c.byRef('LA').p, { proto: 'i2c', chA: 0, chB: 1 }); if (m.pullup === 'none') { L.w('RP1', 'A', 'AL1', '+'); L.w('RP1', 'B', 'I2C', 'SCL'); L.w('RP2', 'A', 'AL1', '+'); L.w('RP2', 'B', 'I2C', 'SDA'); } },
+  checks: [
+    { label: wiredLbl('D0 sur SCL, D1 sur SDA'), run: c => chOf(c, 'I2C', 'SCL') >= 0 && chOf(c, 'I2C', 'SDA') >= 0 && chOf(c, 'I2C', 'SCL') !== chOf(c, 'I2C', 'SDA') && laGnd(c) },
+    { label: 'Bus à drain ouvert : résistances de rappel (1 à 20 kΩ) sur SCL et SDA', run: c => iv(c).pullup !== 'none' || (hasPull(c, 'SCL') && hasPull(c, 'SDA')) },
+    { label: 'Décodeur I²C : SCL et SDA sur les bonnes voies', run: c => proto(c, 'i2c') && LA(c).chA === chOf(c, 'I2C', 'SCL') && LA(c).chB === chOf(c, 'I2C', 'SDA') },
+    { label: 'La transaction est décodée (adresse, R/W, ACK, données)', run: c => { const t = i2cTr(c); if (!t.length) return false; const x = t[t.length - 1], m = iv(c); if (x.addr !== m.addr || (x.rw || 'W') !== m.rw) return false; if (m.ack === 'non') return !x.ack; return x.ack && same(x.bytes.map(b => b.v), P.parseHex(m.data)); } },
+    noBurn],
+  correction: '<p><b>START</b> : SDA passe à 0 alors que SCL = 1. Puis 7 bits d\'adresse (MSB d\'abord) + <b>R/W</b> (0 écriture, 1 lecture) + bit <b>ACK</b> (l\'esclave tire SDA à 0). Les octets suivants sont aussi suivis d\'un ACK. <b>STOP</b> : SDA passe à 1 alors que SCL = 1. SDA ne change que quand SCL est bas (sauf START/STOP).</p><p>Les sorties étant à <b>drain ouvert</b>, le niveau haut est fourni par des <b>résistances de rappel</b> (≈ 4,7 kΩ à 100 kHz). Sans elles, le bus reste « à plat ». <b>NACK</b> sur l\'adresse : aucun esclave ne répond (mauvaise adresse, composant absent ou non alimenté).</p><p>Cas : 0x48 écriture 01 A5 ; 0x3C (afficheur) 00 AF à 400 kHz ; 0x68 lecture 12 34 ; 0x27 absent → NACK.</p>',
+});
+
+/* ============================================================ G4 — SPI */
+const S = [
+  { mode: 0, freq: 100000, data: 'A5 3C 00', reply: '00 12 34' },
+  { mode: 1, freq: 100000, data: '9F 00 00', reply: '00 EF 40' },
+  { mode: 2, freq: 1000000, data: '03 00 10', reply: '00 00 7E' },
+  { mode: 3, freq: 100000, data: 'D0 00', reply: '00 58' },
+];
+const sv = c => S[c.tp.variant % S.length];
+const spiTr = c => { const p = LA(c); if (!ring(c)) return []; return P.spiDecode({ cs: evs(c, p.chA), clk: evs(c, p.chB), mosi: evs(c, p.chC), miso: evs(c, p.chD) }, p.mode, 8); };
+regScenario({
+  id: 'spi', cat: CAT, diff: 4, title: 'Analyse d\'un bus SPI : retrouver le mode (CPOL / CPHA) (4 cas)', level: 'Bac Pro CIEL (terminale)', duration: '1 h 30', variants: 4, variantLabel: '↻ Autre mode', ...COMMON,
+  refs: 'Bus série synchrone SPI ; signaux CS, SCK, MOSI, MISO ; modes 0 à 3 (polarité et phase d\'horloge)',
+  desc: 'Un maître SPI échange des octets avec un esclave. Le <b>mode SPI</b> (CPOL, CPHA) est inconnu : un mauvais mode donne des octets décalés ou faux. Observez le niveau de repos de SCK et le front d\'échantillonnage, trouvez le mode et décodez les données.',
+  objectives: ['Câbler les 4 signaux SPI à l\'analyseur (CS, SCK, MOSI, MISO)', 'Déterminer CPOL (niveau de repos de SCK) et CPHA (front d\'échantillonnage)', 'Décoder les octets envoyés (MOSI) et reçus (MISO)', 'Comprendre le rôle de CS (sélection de l\'esclave)'],
+  steps: ['Câblez <b>D0 → CS</b>, <b>D1 → SCK</b>, <b>D2 → MOSI</b>, <b>D3 → MISO</b>, <b>GND → masse</b>.', 'Observez SCK quand CS est à 1 (repos) : niveau haut ou bas ? C\'est <b>CPOL</b>.', 'Observez à quel front de SCK les données sont stables : au 1<sup>er</sup> front (CPHA = 0) ou au 2<sup>e</sup> (CPHA = 1) ? Mode = 2·CPOL + CPHA.', 'Choisissez le décodeur SPI et essayez les modes jusqu\'à obtenir des octets cohérents (aucun bit incomplet).', 'Répondez aux questions.'],
+  questions: [
+    { q: 'Niveau de repos de SCK (CPOL) : 0 si bas, 1 si haut', answer: c => (sv(c).mode >> 1) & 1, abs: 0.1 },
+    { q: 'Phase d\'échantillonnage CPHA : 0 (1<sup>er</sup> front) ou 1 (2<sup>e</sup> front)', answer: c => sv(c).mode & 1, abs: 0.1 },
+    { q: 'Mode SPI (0 à 3)', answer: c => sv(c).mode, abs: 0.1 },
+    { q: 'Premier octet envoyé par le maître sur MOSI (en décimal)', answer: c => P.parseHex(sv(c).data)[0], abs: 0.1, hint: 'Ex. 0xA5 = 165.' },
+    { q: 'Nombre d\'octets échangés pendant que CS est actif', answer: c => P.parseHex(sv(c).data).length, abs: 0.1 },
+    { q: 'Dernier octet reçu sur MISO (en décimal)', answer: c => { const r = P.parseHex(sv(c).reply); return r[r.length - 1]; }, abs: 0.1 },
+    { q: 'Fréquence de l\'horloge SCK (en kHz)', answer: c => sv(c).freq / 1000, tol: 0.06, unit: 'kHz' },
+    { q: 'À quoi sert la ligne CS (chip select) ?', type: 'choice', options: ['À fournir l\'horloge', 'À sélectionner l\'esclave : il ne communique que lorsque CS est à 0', 'À transmettre les données du maître', 'À alimenter l\'esclave'], correct: 1 },
+  ],
+  build(c, o) {
+    const m = S[((o && o.variant) || 0) % S.length]; const L = mk(c);
+    L.p('fg_spi', 'SPI', 200, 240, { on: true, freq: m.freq, mode: m.mode, data: m.data, reply: m.reply, vhi: 3.3, every: 0.05, hidden: true });
+    L.p('ground', 'GND1', 340, 400); gnd(L, 'SPI', 'GND'); laPart(L);
+  },
+  solve(c, ctx, v) { const m = S[v % S.length]; const L = mk(c); L.w('LA', 'D0', 'SPI', 'CS'); L.w('LA', 'D1', 'SPI', 'SCK'); L.w('LA', 'D2', 'SPI', 'MOSI'); L.w('LA', 'D3', 'SPI', 'MISO'); L.w('LA', 'GND', 'GND1', 'G'); Object.assign(c.byRef('LA').p, { proto: 'spi', chA: 0, chB: 1, chC: 2, chD: 3, mode: m.mode }); },
+  checks: [
+    { label: wiredLbl('D0 CS, D1 SCK, D2 MOSI, D3 MISO'), run: c => ['CS', 'SCK', 'MOSI', 'MISO'].every(n => chOf(c, 'SPI', n) >= 0) && laGnd(c) },
+    { label: 'Décodeur SPI : CS, SCK, MOSI, MISO sur les bonnes voies', run: c => { const p = LA(c); return proto(c, 'spi') && p.chA === chOf(c, 'SPI', 'CS') && p.chB === chOf(c, 'SPI', 'SCK') && p.chC === chOf(c, 'SPI', 'MOSI') && p.chD === chOf(c, 'SPI', 'MISO'); } },
+    { label: 'Mode SPI correct (CPOL / CPHA)', run: c => +LA(c).mode === sv(c).mode },
+    { label: 'Les octets MOSI et MISO sont décodés sans bit incomplet', run: c => { const t = spiTr(c); if (!t.length) return false; const x = t[t.length - 1]; return !x.partial && same(x.mosi, P.parseHex(sv(c).data)) && same(x.miso, P.parseHex(sv(c).reply)); } },
+    noBurn],
+  correction: '<p><b>CPOL</b> = niveau de repos de SCK (0 bas, 1 haut). <b>CPHA</b> = 0 : l\'esclave échantillonne au <i>premier</i> front de SCK (la donnée est présentée avant) ; CPHA = 1 : au <i>second</i> front. <b>Mode = 2·CPOL + CPHA</b> : mode 0 (0,0), 1 (0,1), 2 (1,0), 3 (1,1). Les octets sont transmis <b>MSB en premier</b>, simultanément sur MOSI (maître → esclave) et MISO (esclave → maître), tant que CS est à 0.</p><p>Un mauvais mode décale les bits d\'un demi-période : les octets décodés sont faux ou incomplets. Cas : mode 0 « A5 3C 00 » ; mode 1 « 9F 00 00 » ; mode 2 « 03 00 10 » à 1 MHz ; mode 3 « D0 00 ».</p>',
+});
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 /* coverage.js — matrice de couverture indicative du référentiel Bac Pro CIEL (électronique) */
 (function (g) {
 'use strict';
@@ -3697,13 +4118,23 @@ NS.COVERAGE = {
     ['Maintenance', 'Dépannage d\'une platine transistor / d\'un montage à AOP', 'ok', 'dep2, dep3'],
     ['Sécurité', 'Risque électrique, fusibles, protection (consignes dans les TP secteur)', 'part', 'transfo, dep1'],
     ['Capteurs / Chaînes', 'Conditionnement de capteurs (CTN, LDR)', 'part', 'cre'],
-    ['Numérique', 'Logique combinatoire / séquentielle, microcontrôleur', 'no', 'à venir'],
-    ['Communication', 'Modulation, transmission, bus de terrain', 'no', 'à venir'],
+    ['Numérique', 'Logique combinatoire : portes, tables de vérité, familles CMOS / TTL', 'ok', 'portes'],
+    ['Numérique', 'Logique séquentielle (bascule, compteur) : composants disponibles, TP à venir', 'part', 'bibliothèque'],
+    ['Numérique', 'Microcontrôleur', 'no', 'à venir'],
+    ['Composants', 'Temporisateur NE555 (astable), calcul de fréquence', 'ok', 'ne555'],
+    ['Composants', 'Optocoupleur, isolation galvanique', 'ok', 'opto'],
+    ['Composants', 'MOSFET de puissance en commutation, interface logique / puissance', 'ok', 'mosfet'],
+    ['Maintenance', 'Dépannage d\'une platine logique', 'ok', 'dep_log'],
+    ['Communication', 'Liaison série UART / RS-232 : trame, débit, parité, niveaux', 'ok', 'uart'],
+    ['Communication', 'Bus de terrain Modbus RTU / RS-485 différentiel, CRC', 'ok', 'modbus'],
+    ['Communication', 'Bus I²C et SPI (adresse, ACK, modes)', 'ok', 'i2c, spi'],
+    ['Communication', 'Modulation, transmission radio, réseaux Ethernet (couches physiques)', 'no', 'à venir'],
     ['Énergie', 'Alimentation à découpage, onduleur', 'no', 'à venir'],
     ['Amplification', 'Montage non inverseur, sommateur, intégrateur, trigger de Schmitt', 'no', 'à venir'],
   ],
   limits: [
-    'Le moteur simule des circuits mono-phasés à composants discrets : pas de logique numérique ni de microcontrôleur dans cette première version.',
+    'Le moteur simule des circuits mono-phasés ; la logique numérique est comportementale (portes, 555, bascule, compteur), sans microcontrôleur ni CPLD.',
+    'Les analyseurs de trames et générateurs de protocoles (UART, Modbus, I²C, SPI) sont des modèles idéalisés : pas de câblage de bus réel (terminaisons, longueurs, rebonds).',
     'Les modèles de composants (diodes, transistors, AOP, régulateurs) sont des modèles simplifiés réalistes, pas des modèles SPICE constructeur.',
     'Le temps simulé peut être plus lent que le temps réel pour des signaux de fréquence élevée (≥ 10 kHz).',
     'Les pannes sont injectées de manière déterministe (variantes numérotées) : le mode enseignant révèle la panne.',

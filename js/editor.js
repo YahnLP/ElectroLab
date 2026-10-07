@@ -18,6 +18,7 @@ function valueText(i) {
     case 'fuse': return (p.fast ? 'F ' : 'T ') + fmt(p.I, 'A', 3);
     case 'lamp': return p.V + ' V / ' + p.P + ' W';
     case 'relay': return 'Bobine ' + p.V + ' V';
+    case 'gate': case 'inv': return p.fn + ' · ' + p.fam; case 'dff': case 'cnt4': return p.fam; case 'timer555': case 'opto': case 'mosfet': return p.model;
     case 'ldr': return fmt(p.lux, 'lx', 3); case 'ctn': return p.T + ' °C';
     default: return '';
   }

@@ -16,7 +16,7 @@ def('fg_uart', {
   fields: [bool('on', 'Émission active'), baud, sel('bits', 'Bits de données', [7, 8], ['7', '8']), sel('parity', 'Parité', ['N', 'E', 'O'], ['Aucune', 'Paire', 'Impaire']), sel('stop', 'Bits de stop', [1, 2], ['1', '2']),
     sel('level', 'Niveaux', ['ttl', 'rs232'], ['TTL / CMOS (0–5 V)', 'RS-232 (±12 V, logique inversée)']), sel('vhi', 'Tension TTL', [3.3, 5], ['3,3 V', '5 V']), txt('msg', 'Message (\\r \\n \\xNN)'), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => p, faults: FRAME_FAULTS,
-  symbol: i => box(-50, -40, 50, 40, 'UART', i.p.baud + ' bd') + wave(-18, 22) + L(50, -20, 60, -20) + L(50, 20, 60, 20) + T(40, -16, 'TX', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -40, 50, 40, 'UART', i.p.hidden ? '? bd' : i.p.baud + ' bd') + wave(-18, 22) + L(50, -20, 60, -20) + L(50, 20, 60, 20) + T(40, -16, 'TX', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
 });
 def('fg_rs485', {
   ext: [-50, -50, 50, 50], label: 'Nœud RS-485 / Modbus RTU (maître + esclave)', cat: 0, ref: 'MB', pins: [{ n: 'A', x: 60, y: -20 }, { n: 'B', x: 60, y: 0 }, { n: 'GND', x: 60, y: 20, c: 'k' }],
@@ -32,7 +32,7 @@ def('fg_i2c', {
   fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCL', [100000, 400000], ['100 kHz (standard)', '400 kHz (rapide)']), num('addr', 'Adresse 7 bits (décimal)', '', { min: 0, max: 127 }), sel('rw', 'Sens', ['W', 'R'], ['Écriture', 'Lecture']), txt('data', 'Octets (hexa)'), sel('ack', 'Esclave présent (ACK)', ['oui', 'non'], ['Oui', 'Non (NACK)']),
     sel('pullup', 'Résistances de rappel', ['none', '4k7'], ['Externes (à câbler)', 'Internes 4,7 kΩ']), sel('vhi', 'Tension du bus', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => Object.assign({}, p, { ack: p.ack !== 'non' }), faults: FRAME_FAULTS,
-  symbol: i => box(-50, -50, 50, 50, 'I²C', (i.p.freq / 1000) + ' kHz') + `<g class="sym-f" stroke="#2563eb"><path d="M-30 14 h10 v-8 h10 v8 h10 v-8 h10"/><path d="M-30 30 h6 v-8 h22 v8 h12"/></g>` + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'SCL', 'sym-xs', 'end') + T(40, 4, 'SDA', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -50, 50, 50, 'I²C', i.p.hidden ? '? kHz' : (i.p.freq / 1000) + ' kHz') + `<g class="sym-f" stroke="#2563eb"><path d="M-30 14 h10 v-8 h10 v8 h10 v-8 h10"/><path d="M-30 30 h6 v-8 h22 v8 h12"/></g>` + L(50, -20, 60, -20) + L(50, 0, 60, 0) + L(50, 20, 60, 20) + T(40, -16, 'SCL', 'sym-xs', 'end') + T(40, 4, 'SDA', 'sym-xs', 'end') + T(40, 24, 'GND', 'sym-xs', 'end'),
 });
 def('fg_spi', {
   ext: [-50, -60, 50, 60], label: 'Maître / esclave SPI', cat: 0, ref: 'SPI', pins: [{ n: 'CS', x: 60, y: -40 }, { n: 'SCK', x: 60, y: -20 }, { n: 'MOSI', x: 60, y: 0 }, { n: 'MISO', x: 60, y: 20 }, { n: 'GND', x: 60, y: 40, c: 'k' }],
@@ -40,7 +40,7 @@ def('fg_spi', {
   fields: [bool('on', 'Bus actif'), sel('freq', 'Fréquence SCK', [10000, 100000, 1000000, 4000000], ['10 kHz', '100 kHz', '1 MHz', '4 MHz']), sel('mode', 'Mode SPI (CPOL/CPHA)', [0, 1, 2, 3], ['0 (0,0)', '1 (0,1)', '2 (1,0)', '3 (1,1)']), txt('data', 'Octets MOSI (hexa)'), txt('reply', 'Octets MISO (hexa, vide = ~MOSI)'),
     sel('vhi', 'Tension', [3.3, 5], ['3,3 V', '5 V']), num('every', 'Répétition', 's', { min: 0.01, max: 10 }), bool('hidden', 'Masquer les réglages (TP d\'analyse)')],
   eff: p => p, faults: FRAME_FAULTS,
-  symbol: i => box(-50, -60, 50, 60, 'SPI', 'mode ' + i.p.mode) + wave(-18, 40) + [-40, -20, 0, 20, 40].map(y => L(50, y, 60, y)).join('') + T(40, -36, 'CS', 'sym-xs', 'end') + T(40, -16, 'SCK', 'sym-xs', 'end') + T(40, 4, 'MOSI', 'sym-xs', 'end') + T(40, 24, 'MISO', 'sym-xs', 'end') + T(40, 44, 'GND', 'sym-xs', 'end'),
+  symbol: i => box(-50, -60, 50, 60, 'SPI', i.p.hidden ? 'mode ?' : 'mode ' + i.p.mode) + wave(-18, 40) + [-40, -20, 0, 20, 40].map(y => L(50, y, 60, y)).join('') + T(40, -36, 'CS', 'sym-xs', 'end') + T(40, -16, 'SCK', 'sym-xs', 'end') + T(40, 4, 'MOSI', 'sym-xs', 'end') + T(40, 24, 'MISO', 'sym-xs', 'end') + T(40, 44, 'GND', 'sym-xs', 'end'),
 });
 const CAT_I = NS.CATS.indexOf('Instruments');
 def('logic', {
